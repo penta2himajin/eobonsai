@@ -1,0 +1,18 @@
+### provenance
+binary_dir : build/llama-sm86/bin
+model      : Ternary-Bonsai-2-27B-PQ2_0.gguf  (7206168928 bytes)
+fork_commit: adfffbe41b2cabcd51fff326ab045662265062bb
+kv_type    : k=f16 v=f16    reps: 5
+date       : 2026-09-27T23:39:18+09:00
+loadavg    : 2.45 2.18 1.59 2/1907 39720   <- must be idle for a fair comparison
+### gpu
+name, memory.used [MiB], memory.total [MiB], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu, power.draw [W], power.limit [W]
+NVIDIA GeForce RTX 3060, 526 MiB, 12288 MiB, 1230 MHz, 5001 MHz, 45, 31.41 W, 180.00 W
+
+### CLI (served shape: one token at a time, ncols_dst=1)
+$ llama-cli -n 200 --temp 0 --spec-type none -p <fixed prompt>   (run 1)
+[ Prompt: 107.1 t/s | Generation: 30.2 t/s ]
+$ llama-cli -n 200 --temp 0 --spec-type none -p <fixed prompt>   (run 2)
+[ Prompt: 108.4 t/s | Generation: 30.1 t/s ]
+$ llama-cli -n 200 --temp 0 --spec-type none -p <fixed prompt>   (run 3)
+[ Prompt: 107.1 t/s | Generation: 30.1 t/s ]

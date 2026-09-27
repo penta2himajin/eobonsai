@@ -30,3 +30,6 @@ results/*.spec
 # ncu CSV exports are regenerable with the command in docs/gemv-ncu-analysis.md; the
 # analysis document carries the numbers.
 results/ncu-*.csv
+
+# ncu raw exports from the GEMV investigation; regenerable per docs/gemv-benchmark-artifact.md
+results/ncu-cli-gemv.csv

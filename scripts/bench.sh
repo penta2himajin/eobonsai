@@ -65,10 +65,28 @@ run_phase() {
 
 # PP: how fast a fresh prompt is ingested (dp4a-bound).
 # TG: how fast tokens come out, measured with a live KV cache.
-# Select with PHASES=pp or PHASES=tg; default runs both.
+# CLI: the served shape. llama-bench batches tokens, so it runs MMVQ with ncols_dst=4
+#      (rows_per_block=2, grid halved, ~117 GB/s); a server or CLI generating one token
+#      at a time runs ncols_dst=1 (grid = true row count, ~229 GB/s). The two shapes are
+#      2x apart, so llama-bench tg is a lower bound on served throughput, not a proxy.
+#      See docs/gemv-benchmark-artifact.md.
+# Select with PHASES=pp, PHASES=tg, PHASES=cli, or a comma list; default runs pp,tg.
 PHASES="${PHASES:-pp,tg}"
 [[ "$PHASES" == *pp* ]] && run_phase "PP (prompt processing)" -p "${PP_LIST:-128,512,2048,8192}" -n 0 -d 0 "$@"
 [[ "$PHASES" == *tg* ]] && run_phase "TG (token generation)" -p 0 -n 128 -d "${TG_DEPTHS:-0,8192,32768}" "$@"
+
+if [[ "$PHASES" == *cli* ]]; then
+  CLI_BIN="${BIN_DIR%/bin}/bin/llama-cli"
+  [[ -x "$CLI_BIN" ]] || CLI_BIN="$ROOT/$BIN_DIR/llama-cli"
+  echo "" | tee -a "$OUT"
+  echo "### CLI (served shape: one token at a time, ncols_dst=1)" | tee -a "$OUT"
+  for i in 1 2 3; do
+    echo "\$ llama-cli -n ${N:-200} --temp 0 --spec-type none -p <fixed prompt>   (run $i)" | tee -a "$OUT"
+    "$CLI_BIN" -m "$MODEL" -ngl 99 -fa on -st --no-warmup -n "${N:-200}" --temp 0 \
+      -p "${SERVED_PROMPT:-Count from 1 to 40 slowly.}" --spec-type "${SPEC_TYPE:-none}" -rea off \
+      < /dev/null 2>&1 | grep -E "Generation:|Prompt:" | tee -a "$OUT"
+  done
+fi
 
 echo
 echo "saved: $OUT"

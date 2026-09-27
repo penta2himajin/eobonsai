@@ -20,8 +20,15 @@ Applies to `adfffbe41b2cabcd51fff326ab045662265062bb`.
 Uses 2 warps instead of 4 per output row for the ternary GEMV at decode on the generic
 (NVIDIA non-Turing, non-GB10) device table, which is what sm_86 gets.
 
-Measured: `tg128` 29.59 -> **30.19 t/s** (+2.0%), `tg128 @ d8192` 28.01 -> **28.49 t/s**
-(+1.7%), unpatched and patched source builds, `REPS=3`. Parity clean.
+Measured in the `llama-bench` shape (`ncols_dst = 4`): `tg128` 29.59 -> **30.19 t/s**
+(+2.0%), `tg128 @ d8192` 28.01 -> **28.49 t/s** (+1.7%), unpatched and patched source
+builds, `REPS=3`. Parity clean.
+
+**But it is a regression in the served shape.** `llama-cli` streaming
+(`ncols_dst = 1`) measures 29.0-29.1 t/s unpatched against 28.8-28.9 t/s patched, about
+-0.6%. The two shapes take different paths through `calc_nwarps`/`calc_rows_per_block`.
+The target workload is streaming, so this patch is **pending removal**; see
+`docs/gemv-benchmark-artifact.md`. It stays applied only until the removal is verified.
 
 Background: a standalone microbenchmark had predicted +20% for this change and was wrong
 by 10x, because its simplified K-loop was itself slower than the real kernel's at the same

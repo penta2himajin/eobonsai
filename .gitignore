@@ -26,3 +26,7 @@ results/*.sqlite
 results/spec-*.log
 results/*.none
 results/*.spec
+
+# ncu CSV exports are regenerable with the command in docs/gemv-ncu-analysis.md; the
+# analysis document carries the numbers.
+results/ncu-*.csv

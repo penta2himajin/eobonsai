@@ -46,6 +46,23 @@ Trap worth repeating: `thinking_budget_tokens: 0` does **not** disable thinking 
 therefore does **not** unlock speculation. Only `reasoning_effort: "none"` does. See
 [ADR 0003](decisions/0003-ngram-speculation.md).
 
+## End-to-end latency for the target workload
+
+Long context, agentic loop, thinking off, `ngram-simple`, 21K-token document, 256-token
+mechanical edit. Components measured separately; see [ADR 0003](decisions/0003-ngram-speculation.md)
+and `results/prefix-cache-20260927.txt`.
+
+| | fresh context (turn 1) | cached turn (turn 2+) |
+|---|---:|---:|
+| prefill | 47.7 s (21,113 tokens at 445 t/s) | **0.42 s** (26 tokens, cache hit) |
+| decode | 2.5 s (256 tokens at 101 t/s) | 2.5 s |
+| **total** | **50.2 s, of which 95% is prefill** | **2.9 s** |
+
+Without speculation the cached turn would be 0.42 s + 10.2 s = 10.6 s, so the combined
+effect of the prefix cache and speculation is what makes an agent loop feel fast. On a
+fresh long context, speculation buys little because prefill dominates and prefill is at
+the hardware ceiling.
+
 ## Measured performance
 
 Baseline, load average 1.9-2.9, `REPS=3`.

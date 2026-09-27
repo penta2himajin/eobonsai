@@ -1,15 +1,19 @@
-# n-gram speculative decoding: extracted results (llama-cli, temp 0)
-# source: verbose logs from scripts/specbench.sh, regenerable; not tracked
-# reasoning modes: 'code/copy/chat' rows below were collected with REASONING=off
-workload,spec_type,tokens,gen_t_per_s,drafts,accepted,accept_pct
-prompt-chat,ngram-simple,237,28.49,0,0,-
-prompt-chat,none,237,28.57,0,0,-
-prompt-code,ngram-simple,256,28.43,0,0,-
-prompt-code,ngram-simple,256,139.88,6,6,100%
-prompt-code,none,256,28.45,0,0,-
-prompt-code,none,256,28.56,0,0,-
-prompt-copy,ngram-cache,256,62.49,31,31,100%
-prompt-copy,ngram-mod,256,142.58,4,4,100%
-prompt-copy,ngram-simple,256,171.56,5,5,100%
-prompt-copy,none,256,28.58,0,0,-
-prompt-copy,none,300,28.67,0,0,-
+# n-gram speculative decoding, extracted (llama-cli, temp 0, REASONING=off)
+# source: verbose logs from scripts/specbench.sh and the depth runs.
+# Those logs are large and regenerable, so they are not tracked; this table is.
+workload,spec_type,thinking,prompt_tokens,gen_tokens,gen_t_per_s,drafts,accepted,accept_pct
+long16k,ngram-simple,off,21113,147,101.22,3,3,100%
+long16k,none,off,21113,147,25.25,0,0,-
+longchat21k,ngram-simple,off,20958,200,24.97,0,0,-
+longchat21k,none,off,20958,200,25.04,0,0,-
+spec-prompt-chat,ngram-simple,off,34,237,28.49,0,0,-
+spec-prompt-chat,none,off,34,237,28.57,0,0,-
+spec-prompt-code,ngram-simple,off,1906,256,139.88,6,6,100%
+spec-prompt-code,ngram-simple,on,1946,256,28.43,0,0,-
+spec-prompt-code,none,off,1906,256,28.56,0,0,-
+spec-prompt-code,none,on,1946,256,28.45,0,0,-
+spec-prompt-copy,ngram-cache,off,922,256,62.49,31,31,100%
+spec-prompt-copy,ngram-mod,off,922,256,142.58,4,4,100%
+spec-prompt-copy,ngram-simple,off,922,256,171.56,5,5,100%
+spec-prompt-copy,none,off,922,300,28.67,0,0,-
+spec-prompt-copy,none,off,922,256,28.58,0,0,-

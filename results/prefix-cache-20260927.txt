@@ -1,0 +1,12 @@
+# Prefix cache reuse in an agentic loop (llama-server, 21K context, SPEC_TYPE=ngram-simple)
+# Measured 2026-09-27. Request bodies: out/cache-test.py
+
+request                    prompt_n  cache_n  prompt_ms  gen_t/s
+1: fresh 21K context          21123        0      47743    74.02
+2: same ctx + 1 turn             26    21186        416    22.86
+3: same ctx + 2 turns            26    21214        423    24.06
+
+# The 47.7 s prefill is paid once per conversation, not once per turn: a cached turn
+# re-prefills only the 26 new tokens, 115x less prompt work.
+# Turns 2-3 generate a short non-copying answer, so speculation is inert there
+# (~23-24 t/s, matching the measured 25.04 t/s baseline at this depth).

@@ -95,8 +95,53 @@ exact rather than approximate: the 4.9x costs nothing in output. With `temperatu
 speculation is a standard approximate scheme; that case was not measured here, and per-request
 sampling settings should be treated as unverified.
 
+## At depth: the win holds, and it moves the bottleneck
+
+The measurements above are at short context. The target workload is long-context agentic
+work, so the same comparison was repeated at 21,113 tokens of prompt
+(`results/spec-summary-20260927.txt`, workload `long16k`):
+
+| spec-type | gen t/s | speedup | drafts | accepted |
+|---|---:|---:|---:|---:|
+| none | 25.25 | 1.00x | 0 | - |
+| `ngram-simple` | **101.22** | **4.01x** | 3 | 100% |
+
+Two things fall out of this.
+
+**The win survives depth, and for the reason the mechanic predicts.** Decode at this depth
+is 39.6 ms/token without speculation (weight streaming 24.0 ms + KV 4.6 ms + the rest).
+With speculation the same work is amortised over ~4 accepted tokens, giving 9.9 ms/token.
+Speculation amortises the KV read as well as the weight read, so its relative benefit does
+not decay with depth.
+
+**No regression at depth either.** A non-copying task on the same 21K context measured
+25.04 t/s without and 24.97 t/s with speculation, with zero drafts: inert, as at short
+context.
+
+**But prefill now dominates the request.** A fresh 21K-token request costs 47.7 s of
+prefill (21,113 tokens at 444.9 t/s) against 2.5 s of decode with speculation (256 tokens
+at 101 t/s). Speculation cut decode from 10.1 s to 2.5 s, which took decode's share of the
+request from 18% to **5%**. The next bottleneck is prefill, not decode, which is why the
+prefix cache measurement below matters more than any further decode tuning.
+
+## The prefix cache is what makes an agent loop usable
+
+Measured on `llama-server` at 21K context, `results/prefix-cache-20260927.txt`:
+
+| request | prompt_n | cache_n | prompt_ms |
+|---|---:|---:|---:|
+| fresh 21K context | 21,123 | 0 | 47,743 |
+| same context + 1 turn | **26** | **21,186** | **416** |
+| same context + 2 turns | 26 | 21,214 | 423 |
+
+A cached turn re-prefills 26 tokens instead of 21,123, **115x less prompt work**. The 47.7 s
+is paid once per conversation, not once per turn. Combined with speculation, a cached
+mechanical-edit turn costs 0.4 s of prefill plus 2.5 s of decode instead of 10.6 s:
+**roughly 3.7x end to end**, not just 5x on the decode phase alone.
+
 ## What this does not fix
 
 Prefill is untouched (still at the `dp4a` roofline, ADR 0001), and the GEMV's 15.7% gap to
 the bandwidth roofline remains. Speculation changes how many tokens one pass buys, not how
-fast a pass runs.
+fast a pass runs. On a fresh long-context request it therefore buys little: 47.7 s of
+prefill dominates regardless, and prefill is already at the hardware ceiling.

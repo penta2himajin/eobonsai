@@ -1,0 +1,37 @@
+### llama-server
+date    : 2026-09-28T01:44:42+09:00
+loadavg : 1.09 0.68 0.96 3/2497 294036
+588 MiB, 12288 MiB, 1020 MHz, 49, 28.95 W
+flags   : -m /home/penta/repos/eobonsai/models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf -ngl 99 -fa on -ub 512 -b 2048 -t 8 -c 32768 -np 1 --host 127.0.0.1 --port 8080 --metrics --jinja --chat-template-kwargs {"reasoning_effort":"medium"} --reasoning-budget 2048 --spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 384
+0.00.117.793 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.118.143 W srv  llama_server: -----------------
+0.00.118.145 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+0.00.118.145 W srv  llama_server: this can be a security risk (cross-origin attacks)
+0.00.118.145 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+0.00.118.145 W srv  llama_server: -----------------
+0.00.119.358 I srv    load_model: loading model '/home/penta/repos/eobonsai/models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf'
+0.02.849.764 I cmn          init: llama threadpool init, n_threads = 8
+0.03.070.823 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'false'
+0.03.071.223 I srv    load_model: speculative decoding enabled: ngram-simple
+0.03.075.710 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve
+0.03.075.745 I srv  llama_server: model loaded
+0.03.075.749 I srv  llama_server: listening on http://127.0.0.1:8080
+0.03.075.749 W srv  llama_server: NOTICE: server default port will be changed to :9931 in a future release
+0.03.075.750 W srv  llama_server:         ref: https://github.com/ggml-org/llama.cpp/pull/26508
+0.58.536.277 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1
+0.58.536.757 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0
+1.02.254.491 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =   2048, progress = 0.58, t =   3.72 s / 550.89 tokens per second
+1.04.282.396 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =   2998, progress = 0.85, t =   5.75 s / 521.80 tokens per second
+1.05.312.322 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =   3494, progress = 0.99, t =   6.78 s / 515.68 tokens per second
+1.05.850.336 I slot print_timing: id  0 | task 0 | prompt processing, n_tokens =   3510, progress = 1.00, t =   7.31 s / 479.93 tokens per second
+1.07.487.369 I slot print_timing: id  0 | task 0 | prompt eval time =    7460.14 ms /  3514 tokens (    2.12 ms per token,   471.04 tokens per second)
+1.07.487.371 I slot print_timing: id  0 | task 0 |        eval time =    1490.44 ms /    39 tokens (   39.22 ms per token,    25.50 tokens per second)
+1.07.487.372 I slot print_timing: id  0 | task 0 |       total time =    8950.59 ms /  3553 tokens
+1.07.487.376 I slot print_timing: id  0 | task 0 |    graphs reused =         32
+1.07.487.486 I slot print_timing: id  0 | task 0 | draft acceptance = 0.11111 (    3 accepted /    27 generated), mean len =  4.00
+1.07.487.667 I slot      release: id  0 | task 0 | stop processing: n_tokens = 3552, truncated = 0
+1.12.307.565 I slot get_availabl: id  0 | task -1 | selected slot by LCP similarity, f_sim_best = 0.998 (> 0.100 thold), f_keep = 0.986
+1.12.307.859 I slot launch_slot_: id  0 | task 41 | processing task, is_child = 0
+1.13.092.403 W srv          stop: cancel task, id_task = 41
+1.13.127.234 I slot      release: id  0 | task 41 | stop processing: n_tokens = 3523, truncated = 0
+1.17.899.980 I srv    operator(): operator(): cleaning up before exit...

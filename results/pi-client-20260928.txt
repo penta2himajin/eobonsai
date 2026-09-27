@@ -1,0 +1,46 @@
+# Pi as a client for this model: verified configuration and measured throughput
+
+Pi 0.87.1 (npm @earendil-works/pi-coding-agent) against llama-server from the PrismML fork,
+model PQ2_0, ngram-simple 6/384, context 32768.
+
+## The working models.json
+
+A custom provider alone is NOT enough: Pi sent no reasoning field at all until the model entry
+declared `reasoning: true`. Verified by capturing raw request bodies with
+tools/logging-proxy.py:
+
+  config                                captured reasoning_effort
+  custom provider only                  None   (--thinking off and --thinking max identical)
+  + reasoning: true + thinkingLevelMap  'none' for --thinking off
+  + reasoning: true + thinkingLevelMap  'max'  for --thinking max
+
+`thinkingLevelMap` is needed because llama-server rejects "off" and "minimal" with HTTP 500
+and accepts only none/low/medium/high/xhigh/max, so off and minimal map to "none".
+`compat.supportsReasoningEffort: true` is needed because the auto-detection does not recognise
+a localhost URL.
+
+See fixtures/pi-models.json.example.
+
+## Measured through Pi on the served path
+
+Prompt = fixtures/prompts/code-edit.txt (rewrite a file with comments added): the agentic
+workload, high context reuse. Rate is the server's own eval timing.
+
+  --thinking off      11285 ms / 1986 tokens   175.89 t/s
+  --thinking medium   11576 ms / 2012 tokens   173.72 t/s
+
+Both far above the 30.6 t/s non-speculation baseline, so speculation fired in both. That
+matches the corrected mechanism: thinking delays drafting, it does not forbid it, and the
+answer that follows re-quotes the file heavily.
+
+175.9 t/s is 5.8x the non-speculation baseline and 1.76x the 100 tok/s target, measured
+through a real client rather than a benchmark harness.
+
+Prompt note: Pi sends a ~3500-token prompt of its own (system preamble plus 4 tool schemas)
+against the 1906 tokens of the bare fixture. The rate above is for that larger request.
+
+## Not yet verified through Pi
+
+The prefix-cache behaviour on edit turns (the 30.9 s -> 1.2 s result). Pi exposes
+`showCacheMissNotices` and `cacheWarming`, so it is the right client to check it with, but a
+multi-turn edit session has not been run yet.

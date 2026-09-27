@@ -56,7 +56,11 @@ and `results/prefix-cache-20260927.txt`.
 |---|---:|---:|
 | prefill | 47.7 s (21,113 tokens at 445 t/s) | **0.42 s** (26 tokens, cache hit) |
 | decode | 2.5 s (256 tokens at 101 t/s) | 2.5 s |
-| **total** | **50.2 s, of which 95% is prefill** | **2.9 s** |
+| **total** | **50.2 s, of which 95% is prefill** | **2.9 s (projection)** |
+
+The 2.9 s figure is a projection: it combines prompt timing measured on a short non-copying
+reply with decode timing measured on a separate copying task, rather than one observed
+complete turn (`docs/review-findings-sol.md`).
 
 Without speculation the cached turn would be 0.42 s + 10.2 s = 10.6 s, so the combined
 effect of the prefix cache and speculation is what makes an agent loop feel fast. On a

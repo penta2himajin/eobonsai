@@ -506,3 +506,4 @@ flags   : -m /home/penta/repos/eobonsai/models/bonsai2/Ternary-Bonsai-2-27B-PQ2_
 7.52.885.881 I slot print_timing: id  0 | task 11319 |    graphs reused =      11105
 7.52.885.899 I slot print_timing: id  0 | task 11319 | draft acceptance = 0.21875 (   21 accepted /    96 generated), mean len = 11.50
 7.52.885.939 I slot      release: id  0 | task 11319 | stop processing: n_tokens = 470, truncated = 0
+25.32.771.969 I srv    operator(): operator(): cleaning up before exit...

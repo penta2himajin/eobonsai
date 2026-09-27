@@ -27,9 +27,6 @@ results/spec-*.log
 results/*.none
 results/*.spec
 
-# ncu CSV exports are regenerable with the command in docs/gemv-ncu-analysis.md; the
-# analysis document carries the numbers.
-results/ncu-*.csv
-
-# ncu raw exports from the GEMV investigation; regenerable per docs/gemv-benchmark-artifact.md
-results/ncu-cli-gemv.csv
+# ncu CSV exports ARE tracked: they are the decisive per-shape counters behind ADR 0006,
+# and an external review correctly noted that gitignoring them left only a transcription.
+# Regenerable with the commands in docs/gemv-ncu-analysis.md, but small enough to commit.

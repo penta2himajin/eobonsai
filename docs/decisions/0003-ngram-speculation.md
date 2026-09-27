@@ -47,11 +47,23 @@ Serving path, same code-edit prompt, `--spec-type ngram-simple` on `llama-server
 | `reasoning_effort: "low"` | 28.74 | 48 | 12 (25%) | 1270 |
 | `reasoning_effort: "minimal"` | rejected (HTTP 500) | - | - | - |
 
-## The finding that matters: thinking must be off
+## The finding that matters: thinking must be off (PARTLY RETRACTED)
 
-**Speculation produces zero drafts while the model is thinking.** The thinking trace does
-not quote the context, so there is nothing for an n-gram matcher to propose from. Every
-configuration with thinking on measured 1.00x, whether from the CLI or the server.
+**RETRACTED 2026-09-28.** This section claimed speculation produces zero drafts while the
+model is thinking. The project's own served-path data contradicts it: `medium` produced
+96 drafts with 51 accepted and 1109 characters of reasoning
+(`results/reasoning-ab-20260927-235000.txt`), and `low` produced 144 drafts with 61 accepted.
+
+Drafts fire during the *answer*, after the thinking trace, whenever the answer re-quotes the
+context. The original measurement used short prompts where thinking consumed the entire
+output budget, leaving nothing to draft from. The correct rule: **speculation needs context
+reuse in the generated span; thinking can prevent or delay it, but does not forbid it.**
+
+The blanket dismissal of `low` in this ADR is withdrawn with it.
+
+What does still hold: turning thinking off removes thinking tokens, which is where the large
+wall-clock wins on mechanical tasks come from, and the token rate itself is unchanged by
+speculation when the output does not reuse context. See `docs/reasoning-mode-trade.md`.
 
 Two traps found by measurement:
 

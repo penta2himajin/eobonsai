@@ -4,6 +4,13 @@ Measured with Nsight Systems on this machine. This closes the open question from
 `docs/roofline-rtx3060.md`, which had roughly 9 ms of each decode token unaccounted for
 after weight streaming, the Hadamard passes and KV traffic.
 
+## Two limitations, not one
+
+**Second limitation (added 2026-09-28).** The breakdown below comes from a `llama-bench`
+decode run, i.e. the `ncols_dst = 4` batched shape that
+`docs/gemv-benchmark-artifact.md` later showed is not what a served request uses. Read the
+shares as a ranking within that capture, **not** as a measured served-token budget.
+
 ## Method and its one limitation
 
 ```

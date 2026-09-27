@@ -41,11 +41,17 @@ entirely from DRAM. That is a healthy, bandwidth-bound kernel. There was no late
 pathology to fix, and the "40% of GEMV time in a slow shape" finding was measuring
 `llama-bench`'s batching, not the model.
 
-**2. `llama-bench` understates served decode throughput.** The benchmark's 4-column batches
+**2. RETRACTED: `llama-bench` does not understate served decode throughput.** The benchmark's 4-column batches
 cost 116.5 GB/s against 228.7 GB/s for the streaming path: the benchmark is roughly **2x
 less bandwidth-efficient** than the workload it is used to represent. So `llama-bench`'s
 `tg128` is not a faithful proxy for single-user streaming, which is the target workload of
 this entire project.
+
+End to end the claim is false: the `llama-bench` baseline is 29.55 t/s and the served-shape
+CLI baseline is 28.8 t/s, so the benchmark is slightly **higher**, not a lower bound.
+Per-kernel bandwidth cannot establish end-to-end ordering because the two shapes also differ
+in non-GEMV work. The shape diagnosis above stands; this corollary is withdrawn
+(`docs/review-findings-sol.md`).
 
 This second point also means **the reported baseline and the ADR 0004 nwarps gain are
 measured in the wrong shape.** They are internally consistent (both patched and unpatched

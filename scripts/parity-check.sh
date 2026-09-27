@@ -88,12 +88,20 @@ if [[ -z "$PPL_A" || -z "$PPL_B" ]]; then
 fi
 DELTA="$(python3 -c "a,b=$PPL_A,$PPL_B; print(f'{abs(a-b)/a*100:.4f}')")"
 echo "ppl delta: ${DELTA}%   tokens: $([[ $TOKENS_OK == 1 ]] && echo match || echo differ)"
-if python3 -c "import sys; sys.exit(0 if $DELTA < 0.1 else 1)"; then
+
+# BOTH conditions must hold. Until this was fixed the script tested only the perplexity
+# delta even though it printed the token comparison, so divergent greedy output could
+# still PASS. Perplexity is a mean and can hide token-level divergence, which is exactly
+# the failure mode a kernel change introduces.
+PPL_OK=0
+python3 -c "import sys; sys.exit(0 if $DELTA < 0.1 else 1)" && PPL_OK=1
+
+if [[ "$PPL_OK" == 1 && "$TOKENS_OK" == 1 ]]; then
   echo "PASS"
   echo "logs: $OUTDIR"
   exit 0
-else
-  echo "FAIL: perplexity delta >= 0.1%"
-  echo "logs: $OUTDIR"
-  exit 1
 fi
+[[ "$PPL_OK" == 0 ]] && echo "FAIL: perplexity delta >= 0.1%"
+[[ "$TOKENS_OK" == 0 ]] && echo "FAIL: greedy tokens diverged"
+echo "logs: $OUTDIR"
+exit 1

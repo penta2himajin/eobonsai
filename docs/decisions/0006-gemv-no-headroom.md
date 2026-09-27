@@ -1,6 +1,6 @@
-# ADR 0006: The decode GEMV has no kernel-side headroom; the objective is met by measurement
+# ADR 0006: The decode GEMV headroom is 8-13%, not 0% and not 24% (corrected)
 
-- Status: **accepted** (measured 2026-09-27/28)
+- Status: **superseded by the correction below** (measured 2026-09-27/28, corrected 2026-09-28)
 - Date: 2026-09-28
 - Context: RTX 3060 12 GB, `PQ2_0`, served shape (`ncols_dst = 1`)
 
@@ -46,10 +46,35 @@ The dominant shape (17408 rows, `ffn_gate`/`ffn_up`, 128 of the 401 rotated weig
 rate is 96-98% and L2 hit rate is 3-14%, meaning the loads hit L1 and the remainder streams
 from DRAM: exactly the profile of a saturated streaming kernel.
 
-## Decision
+## CORRECTION (2026-09-28): the conclusion was an over-extrapolation
 
-**Stop optimizing the decode GEMV. There is nothing to recover.** Every lever that would
-normally apply is already applied or already accounted for:
+An external review (`docs/review-findings-sol.md`) pointed out that this ADR profiles six
+launches, finds the 17408-row shape saturated, and generalises to the whole model. A byte
+census of the GGUF confirms the 17408-row shape is only **46.9% of PQ weight bytes**, and the
+5120-row shape, **31.7%**, runs at 232-242 GB/s against the same ~275 GB/s ceiling.
+
+A byte-weighted calculation, which is what this ADR should have done:
+
+| sample | weighted average | % of ceiling | gap vs ideal |
+|---|---:|---:|---:|
+| ncu-served run | 245.8 GB/s | 89.4% | 2.8 ms = 8.2% of a token |
+| ncu-cli run | 231.9 GB/s | 84.3% | 4.4 ms = 12.9% of a token |
+
+**So the headroom is 8-13% of decode**, concentrated in the 5120-row shape and the
+6144/10240 shapes. The 24% originally claimed was wrong because it divided by the wrong
+ceiling; this ADR's 0% was wrong because it sampled one shape and generalised.
+
+Two further caveats, also from the review and accepted: the 275 GB/s reference is measured in
+an ordinary CUDA run while the GEMV figures come from Nsight Compute (which replays kernels,
+flushes caches, and can hold clocks), so neither the old 101% nor the new 84-89% is a precise
+closure test; and the decisive CSV was gitignored, so the evidence was a transcription. The
+CSVs are now tracked.
+
+The measurement-quality discussion below still stands on its own terms.
+
+## What stood up
+
+Every lever that would normally apply is already applied or accounted for:
 
 | lever | state |
 |---|---|

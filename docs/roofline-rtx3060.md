@@ -92,6 +92,15 @@ elimination.
 
 PP512 needs 2 x 26.9e9 x 512 = 27.5 TFLOP = 13.75e12 int8 MACs.
 
+> **Correction (2026-09-28):** this charges all 26.9B parameters to every prompt token. The
+> embedding (1.271B) is a row lookup, not a per-token matmul, and the output head (1.271B) is
+> computed only for the last token of an ordinary batch. Excluding 2.543B (9.5%) gives
+> 2 x 24.36e9 x 512 = 24.9 TFLOP and a bound of roughly **534 t/s**, so the measured
+> 493.8 t/s is about **92%** of the bound rather than 102% of a hard ceiling. Attention, the
+> norms and imperfect dp4a utilisation consume the remainder, so this does not establish a
+> recoverable 8%; it invalidates the "measured above the ceiling, therefore closed" reasoning.
+> See `docs/review-findings-sol.md`.
+
 ```
 13.75e12 MAC / 13.0e12 MAC/s = 1.06 s  ->  483 t/s ceiling
 ```

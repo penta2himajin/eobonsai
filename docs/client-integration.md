@@ -1,0 +1,109 @@
+# Client integration
+
+What each client needs in order to use this server, and how much of it is verified rather
+than read from documentation.
+
+The two levers that matter are set by the client, not the server: whether
+`reasoning_effort: "none"` is sent (worth 249 t/s against ~30 t/s on context-reusing work) and
+whether the prompt keeps a stable prefix (worth 30.9 s -> 1.2 s on an edit turn).
+
+## Pi — verified working
+
+Pi 0.87.1 (`@earendil-works/pi-coding-agent`), configured through
+`<agent-dir>/models.json`, where the agent directory defaults to `~/.pi/agent` and can be
+moved with `PI_CODING_AGENT_DIR`. See `fixtures/pi-models.json.example`.
+
+**A custom provider alone is not enough.** Capturing raw request bodies with
+`tools/logging-proxy.py` showed Pi sending no reasoning field at all, so `--thinking off` and
+`--thinking max` produced identical requests and the model kept thinking. Three fields fix it:
+
+| field | why |
+|---|---|
+| `reasoning: true` | without it Pi skips `reasoning_effort` entirely for the model |
+| `thinkingLevelMap` | llama-server rejects `off`/`minimal` with HTTP 500; the accepted set is `none`, `low`, `medium`, `high`, `xhigh`, `max`, so both map to `none` |
+| `compat.supportsReasoningEffort` | the auto-detection does not recognise a localhost URL |
+
+Verified after the fix, by captured body: `--thinking off` sends `reasoning_effort: "none"`,
+`--thinking max` sends `"max"`.
+
+Measured through Pi on `fixtures/prompts/code-edit.txt` (server-side eval timing):
+
+| Pi flag | rate |
+|---|---|
+| `--thinking off` | **175.89 t/s** (1986 tokens in 11285 ms) |
+| `--thinking medium` | 173.72 t/s (2012 tokens in 11576 ms) |
+
+Both far above the 30.6 t/s non-speculation baseline. Pi also sends ~3500 tokens of its own
+prelude (system prompt plus four tool schemas), against 1906 for the bare fixture.
+
+Still unverified through Pi: the multi-turn prefix-cache behaviour. Pi exposes
+`showCacheMissNotices` and `cacheWarming`, so it is the right client to test it with.
+
+## DeepSeek Harness (DSH) — supported by configuration, not applied
+
+DSH routes model requests through the `dsh-llm-pi-ai` plugin, which is built on
+**`@earendil-works/pi-ai`, the same library Pi uses**. Its README states it routes to
+"pi-ai providers, OpenAI-compatible gateways, or self-hosted servers from one configuration",
+and that "the `providers` dictionary is the whole configuration surface".
+
+```yaml
+- name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      eobonsai:
+        displayName: Eobonsai local
+        api: openai-completions
+        baseURL: http://127.0.0.1:8080/v1     # note the capital URL
+        compat:
+          supportsReasoningEffort: true
+        models:
+          - id: "/home/penta/repos/eobonsai/models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf"
+            contextWindow: 32768
+            reasoningEfforts:
+              off: none
+              medium: medium
+              high: high
+              max: max
+```
+
+`reasoningEfforts` is DSH's counterpart to Pi's `thinkingLevelMap`; `compat` carries the
+wire-compatibility switches. `apiKeyEnv` may be omitted, which leaves the route
+"configured-but-keyless". Settings are read per request, so a change takes effect on the next
+request without a restart. The default model comes from the `agent-default-model` plugin
+(`provider: deepseek-official`, `model: deepseek-flash` by default), which would need to point
+at this route.
+
+**Not applied.** DSH is the harness this work is running inside, and reconfiguring the live
+harness from within it risks the session. The configuration above is read from the plugin's
+own README and the composed profile (`dsh --profile web --dump-config`), not from a run.
+
+## OpenCode — installed, not configured, with a known bug
+
+OpenCode is present (`~/.local/bin/opencode`) but has no configuration yet
+(`~/.config/opencode/` holds only `service.json`). Configuration would go in
+`opencode.json`, with providers documented at dev.opencode.ai/docs/providers.
+
+Caveat found while researching: an upstream issue reports
+`options.reasoningEffort` not being passed to API calls for a custom `@ai-sdk/openai` provider
+([#20815](https://github.com/anomalyco/opencode/issues/20815)), which is exactly this use case.
+A later change preserves max reasoning effort in local provider config
+([#37032](https://github.com/anomalyco/opencode/issues/37032)). Whether the installed version
+is affected is untested; the request-capture proxy is the way to find out.
+
+## CommandCode — not verified
+
+Not installed on this machine and no configuration present. Its documentation site renders
+client-side, and three attempts to fetch the BYOK, settings and CLI reference pages returned
+navigation only. All that could be established is that BYOK providers exist. Nothing about its
+config surface is claimed here, because nothing was verified.
+
+## How to check any client
+
+`tools/logging-proxy.py` forwards to llama-server and records the raw request bodies, which is
+the only way to tell "the client omitted the field" from "the server ignored it". Point the
+client at the proxy port instead of the server:
+
+```bash
+python3 tools/logging-proxy.py --listen 8081 --target http://127.0.0.1:8080 --out out/proxy.jsonl
+# then configure the client's base URL as http://127.0.0.1:8081/v1 and inspect out/proxy.jsonl
+```

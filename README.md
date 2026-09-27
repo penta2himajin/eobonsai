@@ -86,6 +86,12 @@ for byte identical every turn. Keep conversation history append-only. Put the cu
 state or a diff last. A client that rebuilds its prompt with the new file contents in place
 near the top pays a full re-prefill on every turn.
 
+See [docs/client-integration.md](docs/client-integration.md) for what each client needs.
+Pi is verified working through `models.json`; DSH is supported through the `dsh-llm-pi-ai`
+plugin's `providers` dictionary but has not been applied here, because DSH is the harness this
+work runs inside. `tools/logging-proxy.py` records raw request bodies, which is the only way to
+tell an omitted field from an ignored one.
+
 **Reasoning effort.** `reasoning_effort: "none"` removes the thinking trace, which is most of
 the wall-clock time on mechanical work (1.9 s against 11.0 s on a measured edit). It is a
 quality trade and belongs per request, not as a server default: on six mechanically graded

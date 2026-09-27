@@ -35,6 +35,11 @@ build_args() {
         --reasoning-budget "$REASONING_BUDGET")
   if [[ "${SPEC_TYPE:-none}" != "none" ]]; then
     ARGS+=(--spec-type "$SPEC_TYPE")
+    # Only the ngram-simple family takes these; pass them for that family.
+    if [[ "$SPEC_TYPE" == ngram-simple ]]; then
+      ARGS+=(--spec-ngram-simple-size-n "${SPEC_NGRAM_SIZE_N:-6}"
+             --spec-ngram-simple-size-m "${SPEC_NGRAM_SIZE_M:-128}")
+    fi
   fi
   if [[ "$KV_TYPE" != "f16" ]]; then
     ARGS+=(-ctk "$KV_TYPE" -ctv "$KV_TYPE")

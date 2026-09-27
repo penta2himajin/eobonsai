@@ -1,0 +1,36 @@
+# n-gram speculation parameter tuning (scripts/ngram-tune.sh)
+
+Prompt: out/spec-prompt-code.txt (add a comment to each function, output the whole file)
+n=256, temp=0, spec=ngram-simple, CLI = bin/cuda/llama-cli
+
+config                      gen_t/s  speedup   drafts   accepted
+no-speculation (base)          28.6    1.00x        -          -
+default (lookup=12 draft=48)  138.5    4.84x        6          6
+min-hits=2                    138.7    4.85x        6          6
+lookup=6                      159.0    5.56x        6          6
+lookup=24                     132.4    4.63x        5          5
+draft=24                      117.2    4.10x       11         11
+draft=96                      146.2    5.11x        4          4
+draft=128                     185.3    6.48x        2          2
+lookup=6 draft=96             151.8    5.31x        4          4
+lookup=6 draft=128            194.3    6.79x        2          2   <- chosen
+lookup=24 draft=96            143.6    5.02x        3          3
+
+Chosen because it is best or equal on every workload tested, not just this one:
+
+workload                            none   default(12/48)   tuned(6/128)
+full-file rewrite (above)           28.6       138.5           194.3    (+40% vs default)
+explain + quote 3 functions         28.3        42.7            44.1    (+3% vs default)
+plain chat, no context reuse        28.3        28.3            28.3    (no regression)
+
+Greedy equivalence: with -n 64 temp 0 on the rewrite prompt, the generated text under
+--spec-type none and under the tuned params is byte-identical (32 lines, 0 differing).
+An earlier report of a 1-line difference was the loading spinner, not output.
+
+Served path, llama-server with the tuned params wired into config/rt3060.env, same prompt,
+reasoning_effort "none": 225.40 t/s, 248 drafts, 248 accepted (100%), wall 5.3 s.
+(CLI 194.3 and served 225.4 differ because the server had the prompt cached.)
+
+Mechanism: each accepted draft buys tokens per weight pass. Longer drafts win because a
+matched n-gram span is emitted in one verification; the fork's default draft of 48 leaves
+most of a long copied span to be produced one token at a time.

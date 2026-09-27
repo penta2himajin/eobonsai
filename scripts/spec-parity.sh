@@ -40,6 +40,10 @@ python3 - "$OUT.none" "$OUT.spec" >> "$OUT" <<'PY'
 import re, sys
 def clean(p):
     t = open(p, errors="replace").read().split("Exiting...")[0]
+    # The loading spinner and its carriage returns are environment noise, not output. A
+    # mismatch here produced a false FAIL once, so it is stripped explicitly.
+    t = re.sub(r"[\r\x08]", "", t)
+    t = re.sub(r"^Loading model\.\.\..*$", "", t, flags=re.M)
     # Drop banner and timing lines: those are environment, not generated text.
     t = re.sub(r"^(load_backend:|ggml_cuda_init:|  Device 0:|\[ Prompt:).*$", "", t, flags=re.M)
     t = re.sub(r"^\s*$", "", t, flags=re.M)

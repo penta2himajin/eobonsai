@@ -1,0 +1,21 @@
+# n-gram speculation parameter sweep
+# date: 2026-09-28T00:33:45+09:00
+# prompt: out/spec-prompt-code.txt   n=256   temp=0   spec=ngram-simple
+# model: Ternary-Bonsai-2-27B-PQ2_0.gguf
+# loadavg: 5.65 4.85 4.07 2/2343 203812
+
+config                      gen_t/s  wall_s   tokens    drafts   accepted
+no-speculation (base)          28.6       -        -         -          -
+default                      138.53   138.5      256         6          6
+min-hits=2                   138.69   138.7      256         6          6
+lookup=6                     158.98   159.0      256         6          6
+lookup=24                    132.40   132.4      256         5          5
+draft=24                     117.17   117.2      256        11         11
+draft=96                     146.22   146.2      256         4          4
+draft=128                    185.34   185.3      256         2          2
+lookup=6 draft=96            151.78   151.8      256         4          4
+lookup=6 draft=128           194.29   194.3      256         2          2
+lookup=24 draft=96           143.61   143.6      256         3          3
+
+# base is --spec-type none on the same prompt, so gen_t/s divided by base is the
+# speedup. drafts and accepted come from the fork's own speculation statistics.

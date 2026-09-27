@@ -84,6 +84,26 @@ certify `none` as safe for mechanical work in general. The mechanical tasks here
 the failure was confined to the arithmetic one, which is consistent with the mechanism
 described above - but this is a small sample and should be said plainly.
 
+## Decode throughput with tuning, against the 100 tok/s target
+
+`scripts/ngram-tune.sh` swept the n-gram lookup and draft lengths. The fork's defaults
+(12/48) are not tuned for this model; lookup=6 draft=128 is better or equal everywhere:
+
+| workload | no speculation | defaults 12/48 | tuned 6/128 |
+|---|---:|---:|---:|
+| full-file rewrite | 28.6 t/s | 138.5 t/s | **194.3 t/s** |
+| explain + quote 3 functions | 28.3 | 42.7 | **44.1** |
+| plain chat, no context reuse | 28.3 | 28.3 | 28.3 (no regression) |
+
+Served path with the tuned values: **225.4 t/s**, 248 drafts and 248 accepted on the rewrite.
+
+Against the 100 tok/s target: **met and exceeded for work that reuses the context** (the bulk
+of agentic editing), reached in part for partial reuse (44 t/s), and **out of reach for
+general decode at 28.3 t/s**, which is DRAM-bandwidth-bound. No mechanism exists to raise
+that: the only lever is more tokens per weight pass, and the compatible draft model for that
+does not exist (the earlier Bonsai 1.7B/4B/8B use a different vocabulary, 151,669 against
+248,320, so they cannot serve as drafters).
+
 ## Reproduce
 
 ```bash

@@ -1,0 +1,20 @@
+run id 1790523033; stable block ~9787 tokens, source file ~294 tokens
+
+every scenario carries a unique nonce so no prefix is reused across runs or scenarios
+
+scenario               turn1 prompt_n turn2 prompt_n turn2 cache_n  turn2 ms vs turn1 ms
+[file_late]
+  turn 1 (fresh)       prompt_n= 13645 cache_n=     0 prompt_ms=   30623 wall= 30.8s
+  turn 2 (after edit)  prompt_n=   565 cache_n= 13129 prompt_ms=    1661 wall=  1.7s
+  -> edit cost 1661 ms = 0.05x a fresh prefill; 13129 tokens reused
+
+[file_early]
+  turn 1 (fresh)       prompt_n= 13645 cache_n=     0 prompt_ms=   30952 wall= 31.9s
+  turn 2 (after edit)  prompt_n= 13694 cache_n=     0 prompt_ms=   30945 wall= 31.7s
+  -> edit cost 30945 ms = 1.00x a fresh prefill; 0 tokens reused
+
+[file_early_appended]
+  turn 1 (fresh)       prompt_n= 13647 cache_n=     0 prompt_ms=   30709 wall= 31.7s
+  turn 2 (after edit)  prompt_n=   386 cache_n= 13651 prompt_ms=    1215 wall=  1.3s
+  -> edit cost 1215 ms = 0.04x a fresh prefill; 13651 tokens reused
+

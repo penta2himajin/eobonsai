@@ -108,6 +108,21 @@ The unaccounted part is the one open question. `scripts/profile-nsys.sh` and
 `scripts/profile-ncu.sh` exist to identify it per kernel; neither has been run yet
 (nsys is not installed, and ncu needs root for hardware counters on this machine).
 
+## Prompt layout is worth more than any kernel change here
+
+Measured (`docs/cache-and-file-edits.md`), same 13.6K context, same edit, three layouts:
+
+| layout | turn 2 prefill |
+|---|---:|
+| stable material first, file last | 1.66 s |
+| file first, stable material after | **30.9 s** (full re-prefill) |
+| original kept, new state appended last | 1.22 s |
+
+A client that rebuilds its prompt with the current file contents in place destroys the
+prefix cache and pays a **full re-prefill every turn**. Keeping stable material first,
+history append-only, and the current file state or diff last costs ~300 extra tokens and
+saves ~30 s per edit turn. This is a prompt-layout rule, not a kernel change.
+
 ## Measured 12 GB budget
 
 llama.cpp sees 11,904 MiB with the display attached (12,288 MiB total, ~384 MiB for the

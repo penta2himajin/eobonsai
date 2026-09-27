@@ -20,15 +20,17 @@ Applies to `adfffbe41b2cabcd51fff326ab045662265062bb`.
 Uses 2 warps instead of 4 per output row for the ternary GEMV at decode on the generic
 (NVIDIA non-Turing, non-GB10) device table, which is what sm_86 gets.
 
-Measured in the `llama-bench` shape (`ncols_dst = 4`): `tg128` 29.59 -> **30.19 t/s**
-(+2.0%), `tg128 @ d8192` 28.01 -> **28.49 t/s** (+1.7%), unpatched and patched source
-builds, `REPS=3`. Parity clean.
+**REMOVED.** Measured in the `llama-bench` shape (`ncols_dst = 4`) it gave +2.0%
+(`tg128` 29.59 -> 30.19 t/s). In the served shape (`ncols_dst = 1`, `llama-cli` streaming)
+it is **neutral**: 28.8 t/s patched, 28.8 t/s unpatched, and 28.8 t/s for the pinned
+prebuilt that never had it. An earlier reading of -0.6% was measurement noise.
 
-**But it is a regression in the served shape.** `llama-cli` streaming
-(`ncols_dst = 1`) measures 29.0-29.1 t/s unpatched against 28.8-28.9 t/s patched, about
--0.6%. The two shapes take different paths through `calc_nwarps`/`calc_rows_per_block`.
-The target workload is streaming, so this patch is **pending removal**; see
-`docs/gemv-benchmark-artifact.md`. It stays applied only until the removal is verified.
+It was removed because a kernel change that buys nothing for the target workload is not
+worth carrying, especially when the A/B that justified it ran in a different shape. See
+`docs/gemv-benchmark-artifact.md` for the full correction.
+
+The directory is currently empty. New patches must be A/B'd in the **served shape**,
+via `scripts/bench.sh` with `PHASES=cli`.
 
 Background: a standalone microbenchmark had predicted +20% for this change and was wrong
 by 10x, because its simplified K-loop was itself slower than the real kernel's at the same

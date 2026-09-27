@@ -106,11 +106,31 @@ repetitions each, patch applied then reverted with a rebuild between:
 | served (`ncols_dst = 1`, `llama-cli`) | **29.0, 29.0, 29.1 t/s** | 28.8, 28.9, 28.9 t/s |
 | benchmark (`ncols_dst = 4`, `llama-bench tg128`) | 29.59 t/s | 30.19 t/s |
 
-**The patch is a small regression in the served shape** (about -0.6%, outside the
-run-to-run spread of 0.1-0.2 t/s) while being a +2.0% gain in the benchmark shape. The two
-shapes take different code paths in `calc_nwarps` and `calc_rows_per_block`, so there is no
-reason they must agree, and here they do not.
+### Correction: the patch is neutral in the served shape, not a regression
 
-Since the target workload is single-user streaming, **the patch should be dropped** unless
-`llama-bench` shape performance is itself wanted. This is exactly the failure mode ADR 0004
-warned about, one level up: the A/B was run in a shape the product does not use.
+The first pass of this table showed 29.0-29.1 t/s unpatched against 28.8-28.9 patched and
+was written up as a -0.6% regression. Re-measured under identical conditions, that was
+measurement noise, not an effect:
+
+| build | served-shape repetitions |
+|---|---|
+| unpatched source build | 28.0, 28.8, 28.8 t/s |
+| pinned prebuilt (never patched) | 28.7, 28.8 t/s |
+| patched source build | 28.8, 28.9, 28.9 t/s |
+
+All of it sits in 28.0-28.9, and the pinned prebuilt - which never had the patch - measures
+the same 28.8. A separate check confirms clocks are not the confounder: the GPU ramps to
+1957-1980 MHz during generation (max is 2160) and drops when idle.
+
+**Conclusion: the patch is neutral in the served shape** (-0.6% was noise) while being a
++2.0% gain in the benchmark shape. It has therefore been removed: carrying a kernel change
+that buys nothing for the target workload, and whose acceptance test was run in a shape the
+product does not use, is not justified. The removal is verified - the unpatched build
+measures 28.8 t/s, identical to the patched build.
+
+The broader point from ADR 0004 still holds and this episode sharpens it: the A/B that
+justified the patch ran in `llama-bench`'s shape, not the served shape. A +2.0% result in
+the wrong shape was worth less than a 0.0% result in the right one.
+
+Measured served-shape baseline for future work: **28.8 t/s** (`llama-cli`, `-n 200`,
+`--spec-type none`, three repetitions, `results/bench-bin-PQ2_0-kf16vf16-20260927-234156.log`).

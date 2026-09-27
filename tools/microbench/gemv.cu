@@ -111,6 +111,41 @@ static void run(const char * label, const uint8_t * w, const int8_t * act, float
            label, ms, bytes / (ms / 1e3) / 1e9, NWARPS, RPB, (long) ((n_rows + RPB - 1) / RPB));
 }
 
+// Pure streaming read with the GEMV's access geometry: each block walks one row of
+// bytes_per_row, blocks stride across rows. Isolates DRAM efficiency at 1360-byte rows
+// from everything else the GEMV does.
+__global__ __launch_bounds__(128, 1) void row_stream_kernel(
+        const uint4 * __restrict__ w, int u4_per_row, long n_rows, int * __restrict__ sink) {
+    const long row = blockIdx.x;
+    if (row >= n_rows) return;
+    const uint4 * __restrict__ r = w + row * (long) u4_per_row;
+    unsigned acc = 0;
+    for (int i = threadIdx.x; i < u4_per_row; i += blockDim.x) {
+        const uint4 v = __ldg(&r[i]);
+        acc += v.x ^ v.y ^ v.z ^ v.w;
+    }
+    if (acc == 0xDEADBEEFu) sink[threadIdx.x] = (int) acc;
+}
+
+static void bench_row_stream(int u4_per_row, const char * label) {
+    const long n_rows = 200000;
+    const double bytes = (double) n_rows * u4_per_row * 16;
+    uint4 * w = nullptr; int * sink = nullptr;
+    CHECK(cudaMalloc(&w, (size_t) bytes));
+    CHECK(cudaMalloc(&sink, 128 * sizeof(int)));
+    CHECK(cudaMemset(w, 0x5A, (size_t) bytes));
+    for (int i = 0; i < 2; ++i) row_stream_kernel<<<(unsigned) n_rows, 128>>>(w, u4_per_row, n_rows, sink);
+    CHECK(cudaDeviceSynchronize());
+    const double t0 = now_ms();
+    const int reps = 10;
+    for (int i = 0; i < reps; ++i) row_stream_kernel<<<(unsigned) n_rows, 128>>>(w, u4_per_row, n_rows, sink);
+    CHECK(cudaDeviceSynchronize());
+    const double ms = (now_ms() - t0) / reps;
+    printf("%-38s %7.2f ms  %7.1f GB/s  (row = %d B)\n",
+           label, ms, bytes / (ms / 1e3) / 1e9, u4_per_row * 16);
+    CHECK(cudaFree(w)); CHECK(cudaFree(sink));
+}
+
 int main() {
     // The dominant shapes in the model: ffn_gate/up are [5120, 17408] and ffn_down is
     // [17408, 5120]. Use K=5120 with many rows so the read is large enough to stream.
@@ -126,6 +161,12 @@ int main() {
     CHECK(cudaMemset(act, 1, K));
 
     printf("GEMV shape: K=%d, rows=%ld, %.2f GB of weights\n\n", K, n_rows, bytes / 1e9);
+    printf("-- pure streaming at GEMV row geometry (is DRAM efficiency the limit?) --\n");
+    bench_row_stream(85,  "row = 1360 B (PQ2_0 K=5120)");
+    bench_row_stream(290, "row = 4640 B (PQ2_0 K=17408)");
+    bench_row_stream(1024,"row = 16384 B (large contiguous)");
+    bench_row_stream(16,  "row = 256 B (very short)");
+    printf("\n");
     printf("-- memory only (access pattern) --\n");
     run<4, 1, false>("load_only  nwarps=4 rpb=1", w, act, out, K, n_rows, bytes);
     run<2, 1, false>("load_only  nwarps=2 rpb=1", w, act, out, K, n_rows, bytes);

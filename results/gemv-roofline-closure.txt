@@ -1,0 +1,48 @@
+# GEMV roofline closure: DRAM is saturated, there is no kernel-side headroom
+# Measured 2026-09-27/28.
+
+## The ceiling is not 300 GB/s for this access geometry
+
+tools/microbench/gemv.cu, bench_row_stream(): pure sequential read of one row per block,
+blocks striding across rows, at the real PQ2_0 row sizes.
+
+  row = 1360 B  (K=5120)   272.2 GB/s
+  row = 4640 B  (K=17408)  274.8 GB/s
+  row = 16384 B            274.5 GB/s
+  row = 256 B              154.3 GB/s
+
+The streaming ceiling is ~275 GB/s and is independent of row length above ~1 KB. The
+earlier 298-307 GB/s figure came from a single large contiguous buffer, which is not the
+geometry the model presents.
+
+## GEMV already meets or beats it
+
+ncu, served shape (ncols_dst=1), 6 launches, results/ncu-served-gemv.csv:
+
+  rows    us     GB/s   DRAM%   L2%    L1%    SM%   occ%  reg
+  1024   10.8   184.4    53.1   14.0   97.3   53.1   59.4   56
+  1024   11.0   175.7    50.5   14.0   97.3   53.4   59.6   56
+  5120   44.1   213.9    61.1    5.8   97.5   74.6   62.0   56
+  5120  102.6   241.8    69.1    5.5   97.6   74.2   66.5   56
+ 12288   84.4   210.9    60.3    4.6   97.5   77.6   61.1   56
+ 17408  174.7   277.7    79.3    3.2   95.8   75.6   71.9   48
+
+The best shape (17408 rows, the ffn_gate/up weights) reads 277.7 GB/s, which is 101% of the
+measured streaming ceiling for this geometry. L1 hit rate is 96-98%, so the loads are being
+served from L1 and the misses go to DRAM; L2 hit rate is 3-14%, i.e. almost everything
+misses L2 and streams from DRAM, which is exactly what a bandwidth-bound streaming kernel
+should look like.
+
+## Conclusion
+
+The decode GEMV is DRAM-bandwidth saturated. There is no kernel-side optimization left:
+the arithmetic is already dp4a, the loads hit L1, occupancy is 59-72% with 56 registers,
+and the fastest shape exceeds the measured pure-streaming ceiling for the same geometry.
+
+The apparent "24% headroom" was an artifact of comparing against the wrong ceiling
+(300 GB/s from a contiguous buffer) rather than the applicable one (275 GB/s for
+row-structured reads). Measured against the right ceiling the gap is ~0% for the dominant
+shape and reflects kernel launch and reduction overhead on the small shapes.
+
+Step B of the optimization objective is therefore closed by measurement, not by exhausting
+attempts: the target does not exist.

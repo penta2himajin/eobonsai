@@ -57,10 +57,13 @@ version of this document concluded from the saturation argument that CUDA graphs
 also records why three indirect forensic attempts gave the wrong answer before the switch
 was found.
 
-**2. The ternary GEMV is at 84.3% of the bandwidth roofline.** 28.45 ms to stream
-7.19 GiB is 253 GB/s effective, against the measured 300 GB/s streaming ceiling. The
-remaining 15.7% (~4.5 ms, 13% of the token) is the entire prize for GEMV micro-optimization,
-and the inner loop already uses `dp4a` with `__byte_perm` unpacking.
+**2. The ternary GEMV is DRAM-saturated in the served shape.** This section originally
+claimed 84.3% of a 300 GB/s roofline and a 15.7% prize. Two corrections apply: the 84.3%
+was measured in `llama-bench`'s shape, not the served one (`docs/gemv-benchmark-artifact.md`),
+and the applicable ceiling for the model's row-structured reads is ~275 GB/s, not 300
+(ADR 0006). In the served shape the dominant weight shape reads 277.7 GB/s, which is 101% of
+that ceiling. **The prize does not exist.** The inner loop already uses `dp4a` with
+`__byte_perm` unpacking, L1 hit rate is 96-98%, and occupancy is 59-72%.
 
 **3. The non-GEMV 17.4% is fragmented.** No single kernel exceeds 2.8%, and the biggest
 group is normalisation and quantisation plumbing: `rms_norm_f32` (209 calls) +

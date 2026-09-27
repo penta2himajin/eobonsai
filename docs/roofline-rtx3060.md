@@ -9,11 +9,18 @@ result is good or bad, and to decide where optimization effort can pay off.
 - Harness: `tools/microbench/roofline.cu`, run via `scripts/roofline.sh`
 - Raw output: `results/roofline-*.txt`
 
+> **Correction (ADR 0006):** the 298-307 GB/s figure below is measured on one large
+> contiguous buffer. `tools/microbench/gemv.cu` measures the same card reading
+> model-shaped rows (1360 B and 4640 B per row) and gets **272-275 GB/s**, flat above ~1 KB
+> rows and collapsing to 154 GB/s at 256 B. Use ~275 GB/s when judging the GEMV; the
+> contiguous figure overstates the reachable ceiling by about 10% and was the source of a
+> nonexistent "24% headroom" target.
+
 ## Measured ceilings
 
 | Quantity | Measured | Reference | Note |
 |---|---:|---|---|
-| Streaming read bandwidth | **298 - 307 GB/s** | 360 GB/s (192-bit GDDR6 spec) | 83-85% of spec; the practical ceiling |
+| Streaming read bandwidth | **298 - 307 GB/s** | 360 GB/s (192-bit GDDR6 spec) | 83-85% of spec. **This is a contiguous-buffer ceiling**; for the model's row-structured reads the applicable ceiling is ~275 GB/s (ADR 0006) |
 | Empty kernel launch | **1.6 - 1.8 us** | - | rises to 2.9 us under CPU load (parallel build) |
 | Null-work launch (28x256) | **1.6 us** | - | launch cost is grid-size independent at this size |
 | dp4a (int8 4-way dot) | **26.0 TOPS(int8)** = 13.0e12 MAC/s | - | 8 independent chains |

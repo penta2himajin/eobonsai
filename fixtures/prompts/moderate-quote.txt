@@ -1,0 +1,154 @@
+Explain what the following Python file does. Quote the most important 3 functions in full, then summarise the rest in prose.
+```python
+#!/usr/bin/env python3
+"""Read a GGUF header without loading tensor data.
+
+The header sits at the start of the file, so this works on a partially
+downloaded model. Prints the architecture parameters and, for Bonsai 2, the
+Hadamard rotation map: which weights are rotated tells us how many FWHT passes
+a forward step performs.
+
+Usage: python3 tools/gguf-inspect.py models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf
+"""
+import struct
+import sys
+
+# GGUF metadata value type ids
+U8, I8, U16, I16, U32, I32, F32, BOOL, STR, ARRAY, U64, I64, F64 = range(13)
+
+FIXED = {
+    U8: ("<B", 1), I8: ("<b", 1), U16: ("<H", 2), I16: ("<h", 2),
+    U32: ("<I", 4), I32: ("<i", 4), F32: ("<f", 4), BOOL: ("<?", 1),
+    U64: ("<Q", 8), I64: ("<q", 8), F64: ("<d", 8),
+}
+
+GGML_TYPE_NAMES = {
+    0: "F32", 1: "F16", 2: "Q4_0", 3: "Q4_1", 6: "Q5_0", 7: "Q5_1", 8: "Q8_0",
+    9: "Q8_1", 10: "Q2_K", 11: "Q3_K", 12: "Q4_K", 13: "Q5_K", 14: "Q6_K",
+    15: "Q8_K", 30: "BF16", 39: "Q1_0", 40: "Q2_0",
+    41: "PQ2_0", 42: "PTQ1_0",  # ids are fork-specific; verified against the file below
+}
+
+
+class Reader:
+    def __init__(self, fh):
+        self.fh = fh
+
+    def raw(self, n):
+        b = self.fh.read(n)
+        if len(b) != n:
+            raise EOFError(f"short read: wanted {n}, got {len(b)}")
+        return b
+
+    def unpack(self, fmt):
+        return struct.unpack(fmt, self.raw(struct.calcsize(fmt)))[0]
+
+    def string(self):
+        return self.raw(self.unpack("<Q")).decode("utf-8", "replace")
+
+    def value(self, vtype):
+        if vtype in FIXED:
+            return self.unpack(FIXED[vtype][0])
+        if vtype == STR:
+            return self.string()
+        if vtype == ARRAY:
+            etype = self.unpack("<I")
+            count = self.unpack("<Q")
+            # Skip only genuinely huge arrays (tokenizer vocab is ~250k strings).
+            if etype == STR and count > 10000:
+                for _ in range(count):
+                    self.string()
+                return [f"<{count} strings skipped>"]
+            items = [self.value(etype) for _ in range(count)]
+            return items
+        raise ValueError(f"unknown value type {vtype}")
+
+
+def main(path):
+    with open(path, "rb") as fh:
+        r = Reader(fh)
+        magic = r.raw(4)
+        if magic != b"GGUF":
+            sys.exit(f"not a GGUF file (magic={magic!r})")
+        version = r.unpack("<I")
+        n_tensors = r.unpack("<Q")
+        n_kv = r.unpack("<Q")
+        print(f"gguf version {version}, {n_tensors} tensors, {n_kv} kv pairs")
+
+        kv = {}
+        for _ in range(n_kv):
+            key = r.string()
+            kv[key] = r.value(r.unpack("<I"))
+
+        print("\n--- architecture ---")
+        for k in sorted(kv):
+            if k.startswith(("qwen35.", "prism.", "general.architecture",
+                             "general.size_label", "general.name")):
+                v = kv[k]
+                if isinstance(v, list) and len(v) > 8:
+                    v = f"[{len(v)} items] {v[:8]} ..."
+                print(f"{k:44s} = {v}")
+
+        print("\n--- tensors ---")
+        info = []
+        for _ in range(n_tensors):
+            name = r.string()
+            nd = r.unpack("<I")
+            ne = [r.unpack("<Q") for _ in range(nd)]
+            ttype = r.unpack("<I")
+            offset = r.unpack("<Q")
+            info.append((name, ne, ttype, offset))
+
+        from collections import Counter
+        print("type histogram:", dict(Counter(GGML_TYPE_NAMES.get(t, t) for _, _, t, _ in info)))
+
+        print("\nfirst 3 (name, ne, type):")
+        for name, ne, ttype, _ in info[:3]:
+            print(f"  {name:32s} {ne} {GGML_TYPE_NAMES.get(ttype, ttype)}")
+
+        # Layer-0 tensor census: one linear layer, one full-attention layer.
+        print("\nlayer 0 tensors:")
+        for name, ne, ttype, _ in info:
+            if name.startswith(("blk.0.", "blk.1.", "blk.2.", "blk.3.")):
+                print(f"  {name:34s} {str(ne):26s} {GGML_TYPE_NAMES.get(ttype, ttype)}")
+
+        rot = kv.get("prism.hadamard.weight_names")
+        inv = kv.get("prism.hadamard.inverse_weight_names")
+        if rot is not None:
+            print("\n--- hadamard ---")
+            print(f"block_size          = {kv.get('prism.hadamard.block_size')}")
+            print(f"axis                = {kv.get('prism.hadamard.axis')}")
+            print(f"sign_mode           = {kv.get('prism.hadamard.sign_mode')}")
+            print(f"rotated weights ({len(rot)}): {rot}")
+            print(f"inverse weights ({len(inv) if inv else 0}): {inv}")
+
+        # Count rotated weights per layer, split by layer kind. A linear-attention
+        # layer rotates attn_qkv/attn_gate/ssm_out; a full-attention layer rotates
+        # attn_q/attn_k/attn_v/attn_output. Both rotate the three FFN weights.
+        if rot:
+            per_layer = {}
+            outside = []
+            for name, _, _, _ in info:
+                if name not in rot:
+                    continue
+                if not name.startswith("blk."):
+                    outside.append(name)
+                    continue
+                parts = name.split(".")
+                per_layer.setdefault(parts[1], []).append(".".join(parts[2:]))
+            kinds = {}
+            for idx, names in per_layer.items():
+                key = "full_attn" if any(n.startswith("attn_q.") for n in names) else "linear_attn"
+                kinds.setdefault(key, {"layers": 0, "weights": sorted(names)})
+                kinds[key]["layers"] += 1
+            print(f"\nlayers = {len(per_layer)}")
+            for key, v in sorted(kinds.items()):
+                print(f"  {key:12s} layers={v['layers']:3d} rotated/weight={len(v['weights'])} {v['weights']}")
+            print(f"  outside blocks: {outside}")
+            total = sum(len(v) for v in per_layer.values()) + len(outside)
+            print(f"=> {total} rotated weight tensors per forward pass")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else "models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf")
+```

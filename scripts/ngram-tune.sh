@@ -8,7 +8,7 @@
 # longer draft pays more when a proposal is rejected.
 #
 # Usage:
-#   scripts/ngram-tune.sh [prompt-file] [N]
+#   scripts/ngram-tune.sh [prompt-file] [N]     # default fixtures/prompts/code-edit.txt
 #
 # Env:
 #   SPEC_BASE=ngram-simple   which n-gram variant to tune
@@ -18,7 +18,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/config/rt3060.env"
 
-PROMPT="${1:-$ROOT/out/spec-prompt-code.txt}"
+PROMPT="${1:-$ROOT/fixtures/prompts/code-edit.txt}"
 N="${2:-256}"
 SPEC_BASE="${SPEC_BASE:-ngram-simple}"
 BIN="${BIN_DIR:-$ROOT/bin/cuda}/llama-cli"

@@ -42,6 +42,7 @@ scripts/build.sh              # sm_86 source build, only needed for kernel work
 
 ```
 scripts/     setup, build, benchmark, profiling entry points
+fixtures/    the prompts every recorded measurement was taken on
 tools/       GGUF header inspector, CUDA microbenchmarks
 docs/        roofline measurements, decisions (ADR)
 results/     raw logs and CSVs from every run (tracked; the evidence)

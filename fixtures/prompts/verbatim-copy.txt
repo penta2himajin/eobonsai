@@ -1,0 +1,42 @@
+Repeat the following text exactly, character for character, and output nothing else:
+
+# RTX 3060 roofline (measured)
+
+All numbers below were measured on this machine, not taken from spec sheets or
+community tables. They are the denominators used to judge whether a model-level
+result is good or bad, and to decide where optimization effort can pay off.
+
+- GPU: NVIDIA GeForce RTX 3060 12 GB (GA106, sm_86, 28 SMs, 1837 MHz sustained)
+- Driver 595.91.07, CUDA 12.4, `third_party/llama.cpp` at `adfffbe`
+- Harness: `tools/microbench/roofline.cu`, run via `scripts/roofline.sh`
+- Raw output: `results/roofline-*.txt`
+
+## Measured ceilings
+
+| Quantity | Measured | Reference | Note |
+|---|---:|---|---|
+| Streaming read bandwidth | **298 - 307 GB/s** | 360 GB/s (192-bit GDDR6 spec) | 83-85% of spec; the practical ceiling |
+| Empty kernel launch | **1.6 - 1.8 us** | - | rises to 2.9 us under CPU load (parallel build) |
+| Null-work launch (28x256) | **1.6 us** | - | launch cost is grid-size independent at this size |
+| dp4a (int8 4-way dot) | **26.0 TOPS(int8)** = 13.0e12 MAC/s | - | 8 independent chains |
+| FP32 FMA | **11.7 TFLOPS** = 5.84e12 FMA/s | 12.8 TFLOPS (28 SM x 128 lane x 2 x 1.837 GHz) | 91% of issue-limited peak |
+| FP16x2 FMA (`__hfma2`) | **13.1 TFLOPS** | - | only 1.12x FP32 |
+| FWHT N=1024, decode (5 blocks) | **2.07 us/call** | - | the model's rotation block size |
+| FWHT N=1024, decode (17 blocks) | **2.09 us/call** | - | launch-latency bound, not bandwidth |
+| FWHT N=1024, pp512 (2560 blocks) | **66 us** (318 GB/s) | 298-307 GB/s | at the bandwidth ceiling |
+| FWHT N=1024, pp512 (8704 blocks) | **240 us** (297 GB/s) | 298-307 GB/s | at the bandwidth ceiling |
+
+### The dp4a result that matters
+
+dp4a delivers **13.0e12 MAC/s against FP32's 5.84e12 FMA/s, i.e. 2.2x, not 4x.**
+GA106 has 128 FP32 lanes but only 64 INT32 lanes per SM, so the int8 advantage on
+this card is roughly half of what a datacenter part gives. Any plan that assumes a
+4x int8 multiplier over-counts the prefill ceiling by about 2x.
+
+## Derived floors for Bonsai 2 27B
+
+Model facts taken from the GGUF header (`tools/gguf-inspect.py`): 64 blocks,
+embedding 5120, FFN 17408, 24 heads / 4 KV heads, key = value = 256,
+`full_attention_interval = 4` (16 full-attention + 48 linear-attention layers),
+Hadamard block 1024, 401 rotated weight tensors.
+

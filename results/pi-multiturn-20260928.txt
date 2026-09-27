@@ -1,0 +1,16 @@
+# Pi multi-turn agent edit: cache behaviour and speculation comparison
+# task: Pi reads calc.py and adds docstrings to each function, twice (turn 2 continues)
+
+spec=ngram-simple 6/384 (agent turn): generation 474.4, 14.4, 195.8, 20.2, 289.5, 21.5, 268.0, 17.5, 74.8, 16.2, 313.8, 13.5 t/s
+spec=off (same task):                  generation 474.4, 27.9, 155.4, 28.4, 135.6, 28.2 t/s
+spec=ngram-simple 6/32 (same task):    generation 474.9, 25.4, 141.6, 26.1, 301.9, 23.3 t/s
+
+Cache, spec=on, two turns (6 requests):
+  req  prompt  processed  cached   hit%   prefill_ms
+   1    6242     6242        0     0.0%    13157
+   2    6354       75     6279    98.8%      383
+   3    6537      187     6350    97.1%      646
+   4    6690      157     6533    97.7%      586
+   5    6804       31     6773    99.5%      414
+   6    7041      241     6800    96.6%      768
+Cache, spec=off (3 requests): 99.2%, 99.3% hit after the first.

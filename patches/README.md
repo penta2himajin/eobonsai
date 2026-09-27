@@ -29,8 +29,29 @@ It was removed because a kernel change that buys nothing for the target workload
 worth carrying, especially when the A/B that justified it ran in a different shape. See
 `docs/gemv-benchmark-artifact.md` for the full correction.
 
-The directory is currently empty. New patches must be A/B'd in the **served shape**,
-via `scripts/bench.sh` with `PHASES=cli`.
+## 0002-mmvq-rows-per-block-pq2_0-decode.patch
+
+Applies to `adfffbe41b2cabcd51fff326ab045662265062bb`.
+
+Sets decode `rows_per_block` to 2 for the ternary types on the generic device table, so two
+output rows share one read of the quantised activation. The kernel's K loop is already
+outermost, so this reduces L1 traffic without touching arithmetic or accumulation order.
+
+Measured, served shape, same session, three reps each:
+
+| | gen t/s | |
+|---|---:|---|
+| R=1 (before) | 28.83 | |
+| **R=2** | **30.50** | **+5.8%**, re-confirmed at 30.63 vs 28.83 (+6.2%) |
+| R=4 | 28.93 | register pressure |
+| R=8 | 28.23 | register pressure |
+
+With speculation on (ngram-simple 6/128): 231.27 -> 232.97 t/s (+0.7%).
+
+Numerics unchanged: perplexity delta 0.0000%, identical greedy tokens.
+
+New patches must still be A/B'd in the **served shape** via `scripts/bench.sh` with
+`PHASES=cli`, and must pass both conditions of `scripts/parity-check.sh`.
 
 Background: a standalone microbenchmark had predicted +20% for this change and was wrong
 by 10x, because its simplified K-loop was itself slower than the real kernel's at the same

@@ -85,6 +85,43 @@ A real activation-stationary rewrite touches a template-heavy kernel with fusion
 ceiling: the gap between L1 at ~75% and DRAM at ~60% bounds what is recoverable, so at most
 roughly 10-15% of GEMV time, i.e. under 10% of a decoded token.
 
+## The fix works: rows_per_block = 2, +5.8%
+
+The diagnosis above was tested directly. Because the kernel's K loop is already outermost and
+the row loop sits inside it, raising `rows_per_cuda_block` for the ternary decode path makes
+two rows share one read of the quantised activation - no loop restructure needed.
+
+| R | gen t/s (served shape, 3 reps) | mean |
+|---|---:|---:|
+| 1 (before) | 28.9, 28.7, 28.9 | 28.83 |
+| **2** | **30.5, 30.5, 30.5** | **30.50** |
+| 4 | 29.0, 28.9, 28.9 | 28.93 |
+| 8 | 28.3, 28.2, 28.2 | 28.23 |
+
+Re-confirmed after finalising: R=2 at 30.7/30.6/30.6 against R=1 at 28.9/28.7/28.9, **+6.2%**.
+R>2 loses more to register pressure than it saves in L1 traffic.
+
+ncu confirms all three intended effects move together:
+
+| shape | DRAM % | L1 % | occupancy | registers |
+|---|---|---|---|---|
+| 5120 rows | 61.0 -> **76.2** | 74.2 -> **69.7** | 62.2 -> **72.0** | 56 -> **47** |
+| 6144 rows | 60.8 -> **77.5** | 74.0 -> **70.7** | 61.1 -> **72.2** | 56 -> **47** |
+| 8704 rows | 60.6 -> **90.0** | 78.3 -> **53.9** | 61.2 -> 65.6 | 56 -> 56 |
+
+The 8704-row shape now reaches 90.0% DRAM, the highest measured on this card.
+
+With speculation on the gain is smaller, +0.7% (231.27 -> 232.97 t/s), because that path is
+dominated by draft verification rather than by one weight pass per token.
+
+Numerics are unchanged by construction - each row's accumulation order is identical, only the
+block that computes it changes - and measurement agrees: perplexity delta 0.0000% with
+identical greedy tokens. Shipped as `patches/0002`.
+
+This is the first kernel change in this project that produced a measured end-to-end win. It
+also closes the L1 item, leaving no identified decode kernel target: the remaining gap is the
+difference between the 87-90% DRAM now reached and 100%, which is ordinary DRAM efficiency.
+
 ## What this round established
 
 | lever | result |

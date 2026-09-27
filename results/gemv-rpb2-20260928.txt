@@ -1,0 +1,39 @@
+# Decode rows-per-block for the ternary GEMV: the L1 fix works
+
+Hypothesis (docs/gemv-l1-diagnosis.md): the kernel's K loop is outermost and the row loop is
+inside it, so R rows per block read the quantised activation once per K iteration instead of
+once per row. Decode used R=1, so the activation was re-read per output row, putting l1tex at
+74-78% while DRAM sat at 60%.
+
+Sweep, served shape (llama-cli, n=200, --spec-type none), same session, three reps each:
+
+  R=1  28.9 28.7 28.9   mean 28.83
+  R=2  30.5 30.5 30.5   mean 30.50   <- chosen, +5.8%
+  R=4  29.0 28.9 28.9   mean 28.93
+  R=8  28.3 28.2 28.2   mean 28.23
+
+Re-measured after finalising: R=2 gives 30.7 30.6 30.6 against R=1 at 28.9 28.7 28.9, +6.2%.
+R>2 loses more to register pressure than it saves in L1 traffic.
+
+ncu confirms the mechanism (results/ncu-rpb2.csv):
+
+  shape        DRAM%         L1%          occupancy    registers
+               R=1 -> R=2    R=1 -> R=2   R=1 -> R=2   R=1 -> R=2
+  5120 rows    61.0 -> 76.2  74.2 -> 69.7 62.2 -> 72.0 56 -> 47
+  6144 rows    60.8 -> 77.5  74.0 -> 70.7 61.1 -> 72.2 56 -> 47
+  8704 rows    60.6 -> 90.0  78.3 -> 53.9 61.2 -> 65.6 56 -> 56
+
+All three move the right way: L1 traffic down, DRAM up (61% -> 74-90%), occupancy up. The
+8704-row shape reaches 90.0% DRAM, the highest measured on this card.
+
+With speculation on, same prompt and params (ngram-simple 6/128), same session:
+
+  R=1  230.6 231.9 231.3   mean 231.27
+  R=2  232.5 233.3 233.1   mean 232.97   +0.7%
+
+Smaller, because the speculated path is dominated by draft verification rather than by one
+weight pass per token.
+
+Numerics: the per-row accumulation order is unchanged by R, so the result is bit-identical.
+scripts/parity-check.sh passes with perplexity delta 0.0000% and identical greedy tokens
+(results/parity-20260928-010722/).

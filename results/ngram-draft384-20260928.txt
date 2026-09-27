@@ -1,0 +1,27 @@
+# Draft length re-swept after the GEMV rows-per-block change
+
+patches/0002 lowered the cost of a weight pass, so the optimal n-gram draft length moved.
+Served shape, prompt = out/spec-prompt-code.txt (full-file rewrite), n=256, temp=0,
+--spec-type ngram-simple --spec-ngram-simple-size-n 6, two runs each:
+
+  draft=64    208.2 207.9
+  draft=128   230.2 232.3
+  draft=192   226.4 227.3
+  draft=256   247.8 248.2
+  draft=384   249.3 249.3   <- chosen
+  draft=512   249.3 246.7
+  draft=1024  247.5 247.1
+
+Flat beyond 384. Cross-checked on the other two workloads, two to three runs each:
+
+  workload            draft=128       draft=384
+  full-file rewrite   230.2 232.3     249.3 249.3     +8%
+  explain + quote      46.4  46.4      46.9  46.8     +1%
+  plain chat           30.2  30.3 30.3 30.3  30.4 30.4  no regression
+
+The chat row also shows the kernel change: with --spec-type none the chat baseline is now
+30.3 30.2 30.3 (mean 30.27) against 28.5 28.5 28.3 (mean 28.43) measured earlier in the same
+session before patches/0002, i.e. +6.5% from the GEMV change alone.
+
+Greedy output with the tuned parameters is byte-identical to --spec-type none
+(results/spec-parity-spec-prompt-code-20260928-011456.txt, 38 lines, PASS).

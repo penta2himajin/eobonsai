@@ -22,9 +22,12 @@ TAG="$(basename "$PROMPT_FILE" .txt)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="$ROOT/results/spec-parity-${TAG}-${STAMP}.txt"
 
+# SPEC_ARGS lets the caller match the tunable n-gram parameters actually in use, e.g.
+#   SPEC_ARGS="--spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 384"
 run() { # run <spec-type> <dest>
+  # shellcheck disable=SC2086
   "$BIN" -m "$MODEL" -ngl 99 -fa on -st --no-warmup -n "$N" --temp 0 \
-    -f "$PROMPT_FILE" --spec-type "$1" -rea off > "$2" 2>&1 || true
+    -f "$PROMPT_FILE" --spec-type "$1" ${SPEC_ARGS:-} -rea off > "$2" 2>&1 || true
 }
 
 {

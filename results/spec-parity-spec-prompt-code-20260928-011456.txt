@@ -1,0 +1,4 @@
+### spec parity: ngram-simple vs none   prompt=spec-prompt-code   n=64   temp=0
+date: 2026-09-28T01:14:56+09:00
+model: Ternary-Bonsai-2-27B-PQ2_0.gguf
+RESULT: PASS - identical generated text (38 lines)

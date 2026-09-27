@@ -1,0 +1,31 @@
+# Test overlay: route DSH at the local llama-server, with thinking control.
+# Applied with: dsh --profile <p> --patch out/dsh-overlay.yml
+# A bare "- id: <row>" entry replaces that row's whole config (it does not merge).
+
+- id: llm-pi-ai
+  config:
+    providers:
+      eobonsai:
+        displayName: Eobonsai local
+        api: openai-completions
+        baseURL: http://127.0.0.1:8081/v1
+        # llama-server needs no key, but a hand-declared route is not an installed
+        # catalog route, so omitting this fails with PI_AI_ERROR: No API key.
+        apiKeyEnv: EOBONSAI_API_KEY
+        compat:
+          supportsReasoningEffort: true
+        models:
+          - id: "Ternary-Bonsai-2-27B-PQ2_0.gguf"
+            name: Bonsai 2 27B (PQ2_0)
+            contextWindow: 32768
+            reasoningEfforts:
+              off: none
+              low: low
+              medium: medium
+              high: high
+              max: max
+
+- id: agent-default-model
+  config:
+    provider: eobonsai
+    model: "Ternary-Bonsai-2-27B-PQ2_0.gguf"

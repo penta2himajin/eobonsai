@@ -29,6 +29,20 @@ if [[ "$current" != "$FORK_COMMIT" ]]; then
   git -C "$SRC" checkout --detach "$FORK_COMMIT"
 fi
 
+# Apply the local patch overlay. The checkout stays disposable: patches/ is the source
+# of truth, so a fresh clone plus this loop reproduces the tuned build exactly.
+for p in "$ROOT"/patches/*.patch; do
+  [[ -e "$p" ]] || continue
+  if git -C "$SRC" apply --reverse --check "$p" 2>/dev/null; then
+    log "patch already applied: $(basename "$p")"
+  elif git -C "$SRC" apply "$p"; then
+    log "applied patch: $(basename "$p")"
+  else
+    log "ERROR: cannot apply $(basename "$p") - the pinned commit may have changed"
+    exit 1
+  fi
+done
+
 log "CUDA: $CUDA_ROOT"
 log "configure -> $BUILD"
 cmake -S "$SRC" -B "$BUILD" \

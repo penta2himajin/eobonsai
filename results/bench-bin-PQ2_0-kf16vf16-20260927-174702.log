@@ -1,0 +1,21 @@
+### provenance
+binary_dir : build/llama-sm86/bin
+model      : Ternary-Bonsai-2-27B-PQ2_0.gguf  (7206168928 bytes)
+fork_commit: adfffbe41b2cabcd51fff326ab045662265062bb
+kv_type    : k=f16 v=f16    reps: 3
+date       : 2026-09-27T17:47:02+09:00
+loadavg    : 3.19 2.73 2.93 3/4864 2942627   <- must be idle for a fair comparison
+### gpu
+name, memory.used [MiB], memory.total [MiB], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu, power.draw [W], power.limit [W]
+NVIDIA GeForce RTX 3060, 584 MiB, 12288 MiB, 1005 MHz, 5001 MHz, 50, 30.21 W, 180.00 W
+
+### TG (token generation)
+$ llama-bench -m <model> -ngl 99 -fa on  -r 3 -p 0 -n 128 -d 0,8192
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 11904 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 11904 MiB
+| model                          |       size |     params | backend    | ngl |  fa |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --: | --------------: | -------------------: |
+| qwen35 27B PQ2_0 - 2.13 bpw (group 128) |   6.70 GiB |    26.90 B | CUDA       |  99 |   1 |           tg128 |         30.19 ± 0.03 |
+| qwen35 27B PQ2_0 - 2.13 bpw (group 128) |   6.70 GiB |    26.90 B | CUDA       |  99 |   1 |   tg128 @ d8192 |         28.49 ± 0.03 |
+
+build: adfffbe (1)

@@ -75,6 +75,6 @@ Quantising a shared activation once instead of per consumer is a concrete, bound
 | CUDA graphs / fewer launches | Ruled out: the GPU is saturated, launches are already hidden |
 | Rewriting the GEMV inner loop | At most 13%, and it is already `dp4a`-based |
 | Fusing the Hadamard pass | Inert: 0.52 ms/token total (1.5%) |
-| GEMV tuning for cache/occupancy | Worth one bounded attempt: 15.7% gap to roofline |
+| GEMV tuning for cache/occupancy | **Swept and closed: +2.0%.** `nwarps=2` beats `nwarps=4` for PQ2_0 at decode, shipped as `patches/0001`; the rest of the 15.7% is not a configuration change (ADR 0004) |
 | Fusing norm/quantise plumbing | The largest remaining non-GEMV target, ~2 ms/token across 730 launches |
 | Speculative decoding | **Done, and it dwarfs all of the above: 4.9-6.0x.** See ADR 0003 |

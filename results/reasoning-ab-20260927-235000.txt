@@ -1,0 +1,22 @@
+# reasoning-mode A/B against the served path
+# date: 2026-09-27T23:50:00+09:00   server: http://127.0.0.1:8080
+# gpu: NVIDIA GeForce RTX 3060, 9597 MiB, 2160 MHz
+# loadavg: 2.65 2.49 1.96 5/2132 55661
+# prompt file: out/reasoning-ab-prompts.txt
+
+prompt       mode             gen_t/s   wall_s tokens  drafts accepted think_chars
+mechanical   server-default     32.30     10.6    334      96       51        1109
+mechanical   none               28.69      1.9     42       0        0           0
+mechanical   low                33.29      8.8    268     144       61         953
+mechanical   medium             31.80     11.0    334      96       51        1109
+
+=== reasoning server-default     28.90     14.1    400     110       19         824
+=== reasoning none               28.48     14.0    386       0        0           0
+=== reasoning low                27.84     15.2    400      96        4         833
+=== reasoning medium             28.68     14.5    400     110       19         824
+
+# Reading this table:
+#   think_chars > 0 -> the model reasoned, drafts are 0, so speculation was inert
+#   drafts > 0      -> speculation fired; that is where the ~5x comes from
+#   server-default  -> whatever config/rt3060.env passes as the chat-template default
+#   none is the only mode measured to disable thinking; low and medium still think

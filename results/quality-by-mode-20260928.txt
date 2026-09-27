@@ -1,0 +1,24 @@
+task         mode            pass   gen_t/s  wall_s   tok  drafts  think  detail
+arith_1      server-default  PASS     31.10    20.5   639     417   1211  expected 60503, got 60503.0
+arith_1      none            PASS     27.64    20.5   567     173      0  expected 60503, got 60503.0
+arith_1      medium          PASS     31.32    20.4   639     417   1211  expected 60503, got 60503.0
+arith_2      server-default  PASS     27.19     7.2   197      96    261  expected 25710, got 25710.0
+arith_2      none            FAIL     13.22     0.5     6       0      0  expected 25710, got 25700.0
+arith_2      medium          PASS     27.47     7.2   197      96    261  expected 25710, got 25710.0
+arith_3      server-default  PASS     27.25     7.6   206      17    405  expected 534, got 534.0
+arith_3      none            PASS     27.29    14.7   402      94      0  expected 534, got 534.0
+arith_3      medium          PASS     27.60     7.5   206      17    405  expected 534, got 534.0
+format_1     server-default  PASS     28.66     7.4   213     127    617  ok
+format_1     none            PASS     23.35     1.3    30       0      0  ok
+format_1     medium          PASS     29.05     7.3   213     127    617  ok
+format_2     server-default  PASS     27.43     2.5    69       0    201  ok
+format_2     none            PASS     11.18     0.9    10       0      0  ok
+format_2     medium          PASS     27.52     2.5    69       0    201  ok
+transform_1  server-default  PASS     28.72    14.1   405      96   1010  ok
+transform_1  none            PASS     23.59     1.4    32       0      0  ok
+transform_1  medium          PASS     28.99    14.0   405      96   1010  ok
+
+accuracy by mode:
+  server-default  6/6 = 100%
+  none            5/6 = 83%
+  medium          6/6 = 100%

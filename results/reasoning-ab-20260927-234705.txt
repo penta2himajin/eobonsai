@@ -1,0 +1,57 @@
+# reasoning-mode A/B against the served path
+# date: 2026-09-27T23:47:05+09:00   server: http://127.0.0.1:8080
+# gpu: NVIDIA GeForce RTX 3060, 9608 MiB, 2160 MHz
+# loadavg: 1.83 2.05 1.72 4/2055 51984
+# prompt file: out/reasoning-ab-prompts.txt
+
+prompt         mode                  gen_t/s   wall_s tokens  drafts accepted think_chars
+=== mechanical === server-default          27.23      8.1    216      96       17       729
+=== mechanical === none                    28.68      1.1     20       0        0         0
+=== mechanical === low                     29.15     14.3    400     176       26      1820
+=== mechanical === medium                  29.46      7.7    216      96       17       729
+
+Output only the modified note. server-default          28.87      3.8    104       0        0       237
+Output only the modified note. none                    28.48      0.7     10       0        0         0
+Output only the modified note. low                     28.86      2.4     53       0        0       146
+Output only the modified note. medium                  28.82      4.0    104       0        0       237
+
+---            server-default          28.86      3.7    104       0        0       237
+---            none                    28.23      0.5     10       0        0         0
+---            low                     28.91      2.2     53       0        0       146
+---            medium                  28.84      4.0    104       0        0       237
+
+The model runs on a single GPU. The KV cache grows with the context. The prefill phase server-default          28.86      3.7    104       0        0       237
+The model runs on a single GPU. The KV cache grows with the context. The prefill phase none                    27.79      0.5     10       0        0         0
+The model runs on a single GPU. The KV cache grows with the context. The prefill phase low                     28.07      2.3     53       0        0       146
+The model runs on a single GPU. The KV cache grows with the context. The prefill phase medium                  28.69      4.0    104       0        0       237
+
+is compute bound. The decode phase is bandwidth bound. The measured ceiling is the limit. server-default          28.82      3.7    104       0        0       237
+is compute bound. The decode phase is bandwidth bound. The measured ceiling is the limit. none                    27.76      0.5     10       0        0         0
+is compute bound. The decode phase is bandwidth bound. The measured ceiling is the limit. low                     28.84      2.2     53       0        0       146
+is compute bound. The decode phase is bandwidth bound. The measured ceiling is the limit. medium                  27.92      4.1    104       0        0       237
+
+=== reasoning === server-default          28.27     14.4    400      48        7      1051
+=== reasoning === none                    27.69     14.8    400     132        3         0
+=== reasoning === low                     30.12     13.9    400     138       47       958
+=== reasoning === medium                  28.02     14.8    400      48        7      1051
+
+token. Compute how many tokens of context fit in the remaining memory if compute buffers server-default          27.30      4.0    104       0        0       237
+token. Compute how many tokens of context fit in the remaining memory if compute buffers none                    28.39      0.6     10       0        0         0
+token. Compute how many tokens of context fit in the remaining memory if compute buffers low                     29.06      2.4     53       0        0       146
+token. Compute how many tokens of context fit in the remaining memory if compute buffers medium                  29.18      4.0    104       0        0       237
+
+take 760 MiB and the card reports 11904 MiB usable. Show the arithmetic, then state the server-default          29.10      3.7    104       0        0       237
+take 760 MiB and the card reports 11904 MiB usable. Show the arithmetic, then state the none                    28.35      0.5     10       0        0         0
+take 760 MiB and the card reports 11904 MiB usable. Show the arithmetic, then state the low                     28.91      2.2     53       0        0       146
+take 760 MiB and the card reports 11904 MiB usable. Show the arithmetic, then state the medium                  29.03      3.9    104       0        0       237
+
+answer in one line. server-default          29.03      3.7    104       0        0       237
+answer in one line. none                    28.38      0.5     10       0        0         0
+answer in one line. low                     29.02      2.2     53       0        0       146
+answer in one line. medium                  28.91      4.0    104       0        0       237
+
+# Reading the table:
+#   think_chars > 0  -> the model reasoned, and drafts are 0, so speculation was inert
+#   drafts > 0       -> speculation fired, which is where the ~5x comes from
+#   "server-default" is whatever config/rt3060.env passes as the chat-template default
+#   "none" is the only mode measured to disable thinking; low/medium still think

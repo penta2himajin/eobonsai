@@ -84,6 +84,28 @@ Two traps found by measurement:
 - The 6.00x verbatim figure is an upper bound with 100% acceptance. Real code editing
   measured 4.90x with a 6-draft average; longer drafts help when the copied span is long.
 
+## Correction: the headline numbers are task-shaped, not general
+
+An earlier version of this ADR presented "4.9-6.0x" as a general decode speedup. It is not.
+Re-measurement on tasks with little verbatim reuse shows speculation does not fire at all,
+and the token rate is unchanged:
+
+| task type | mode | gen t/s | generated | drafts | wall |
+|---|---|---:|---:|---:|---:|
+| short mechanical edit | none | 28.69 | 42 | **0** | 1.9 s |
+| short mechanical edit | medium | 31.80 | 334 | 96 | 11.0 s |
+| reasoning / calculation | none | 28.48 | 386 | 0 | 14.0 s |
+| reasoning / calculation | medium | 28.68 | 400 | 110 | 14.5 s |
+
+What `none` actually buys is the **removal of thinking tokens**, which shortens only tasks
+that were spending their time thinking. Speculation is a second, independent effect that
+applies when the output re-quotes the context (long documents, code editing).
+
+Also corrected: the claim that thinking must be off or "nothing fires" holds, but the reverse
+framing - that turning thinking off yields 5x - does not. See
+`docs/reasoning-mode-trade.md` for the accuracy cost of `none`, which includes a measured
+wrong answer on arithmetic.
+
 ## Correctness: greedy output is unchanged
 
 `scripts/spec-parity.sh` runs the same prompt at `temperature 0` with `--spec-type none`

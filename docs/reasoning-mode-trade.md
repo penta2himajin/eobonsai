@@ -93,13 +93,20 @@ described above - but this is a small sample and should be said plainly.
 |---|---:|---:|---:|
 | full-file rewrite | 28.6 t/s | 138.5 t/s | **194.3 t/s** |
 | explain + quote 3 functions | 28.3 | 42.7 | **44.1** |
-| plain chat, no context reuse | 28.3 | 28.3 | 28.3 (no regression) |
+| plain chat, no context reuse | 28.43 | ~28.3 | ~28.3 (-0.5%) |
 
 Served path with the tuned values: **225.4 t/s**, 248 drafts and 248 accepted on the rewrite.
 
+Speculation is not free when it finds nothing: the matcher runs and rejects. Repeated
+measurement on a no-overlap chat prompt gives 28.43 t/s without speculation against 28.03
+with `ngram-map-k 6/128` (-1.4%, ranges 28.3-28.5 vs 27.9-28.3), and about -0.5% for
+`ngram-simple 6/128`. `ngram-map-k` and `ngram-simple` are otherwise equal on the rewrite
+workload (224.1 vs 223.9 t/s), so **`ngram-simple` stays the default**: same gain, smaller
+no-op penalty.
+
 Against the 100 tok/s target: **met and exceeded for work that reuses the context** (the bulk
 of agentic editing), reached in part for partial reuse (44 t/s), and **out of reach for
-general decode at 28.3 t/s**, which is DRAM-bandwidth-bound. No mechanism exists to raise
+general decode at 28.4 t/s**, which is DRAM-bandwidth-bound. No mechanism exists to raise
 that: the only lever is more tokens per weight pass, and the compatible draft model for that
 does not exist (the earlier Bonsai 1.7B/4B/8B use a different vocabulary, 151,669 against
 248,320, so they cannot serve as drafters).

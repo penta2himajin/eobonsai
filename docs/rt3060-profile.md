@@ -143,7 +143,7 @@ exactly (perplexity 5.8953 vs 5.8953, identical greedy tokens) on
 | `-ub` 1024/2048, `-b` 4096 | within 1.5% of default, i.e. noise |
 | `-np` 2 | halves per-slot context to 16,384 and raises VRAM |
 | tuning `PQ2_0` prefill | at the dp4a roofline already |
-| CUDA graphs / launch batching | GPU is saturated; ~1967 launches/token are already hidden |
+| CUDA graphs / launch batching | already active and worth 5.3%; nothing to gain by enabling (ADR 0005) |
 | `ngram-cache` speculation | 2.19x vs 4.90x for `ngram-simple`, so not worth carrying |
 | speculation while thinking | 0 drafts at every thinking level; inert |
 

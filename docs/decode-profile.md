@@ -47,10 +47,15 @@ unaffected to within a percent.
 
 ## Three conclusions
 
-**1. Decode is not launch-bound.** 34.45 ms of GPU kernel time against 34.22 ms of wall
-clock means the GPU is saturated. With ~1967 launches per token at a measured 1.6 us each,
-launch enqueue is fully hidden behind execution. CUDA graphs, launch batching, and
-kernel-count reduction are therefore *not* worth pursuing on this workload.
+**1. Decode is not launch-*enqueue*-bound, but it is launch-latency sensitive.** 34.45 ms
+of GPU kernel time against 34.22 ms of wall clock means the GPU is saturated, so CPU-side
+enqueue is hidden. That does **not** mean launch handling is free: CUDA graphs are active
+during decode and are worth **5.3%**, measured by toggling the fork's own switch
+(`GGML_CUDA_DISABLE_GRAPHS=1`: tg128 30.14 -> 28.55, d8192 28.47 -> 27.08). An earlier
+version of this document concluded from the saturation argument that CUDA graphs were
+"not worth pursuing"; that conclusion was wrong and is corrected here. See ADR 0005, which
+also records why three indirect forensic attempts gave the wrong answer before the switch
+was found.
 
 **2. The ternary GEMV is at 84.3% of the bandwidth roofline.** 28.45 ms to stream
 7.19 GiB is 253 GB/s effective, against the measured 300 GB/s streaming ceiling. The
@@ -72,7 +77,7 @@ Quantising a shared activation once instead of per consumer is a concrete, bound
 
 | Idea | Verdict |
 |---|---|
-| CUDA graphs / fewer launches | Ruled out: the GPU is saturated, launches are already hidden |
+| CUDA graphs | **Already active and worth 5.3%** (ADR 0005). Nothing left to gain by enabling them |
 | Rewriting the GEMV inner loop | At most 13%, and it is already `dp4a`-based |
 | Fusing the Hadamard pass | Inert: 0.52 ms/token total (1.5%) |
 | GEMV tuning for cache/occupancy | **Swept and closed: +2.0%.** `nwarps=2` beats `nwarps=4` for PQ2_0 at decode, shipped as `patches/0001`; the rest of the 15.7% is not a configuration change (ADR 0004) |

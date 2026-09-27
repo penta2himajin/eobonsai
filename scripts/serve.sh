@@ -33,6 +33,9 @@ build_args() {
         -c "$CTX" -np "$NP" --host "$HOST" --port "$PORT" --metrics --jinja
         --chat-template-kwargs "{\"reasoning_effort\":\"$REASONING_EFFORT\"}"
         --reasoning-budget "$REASONING_BUDGET")
+  if [[ "${SPEC_TYPE:-none}" != "none" ]]; then
+    ARGS+=(--spec-type "$SPEC_TYPE")
+  fi
   if [[ "$KV_TYPE" != "f16" ]]; then
     ARGS+=(-ctk "$KV_TYPE" -ctv "$KV_TYPE")
   fi

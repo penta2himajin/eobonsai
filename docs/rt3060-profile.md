@@ -21,7 +21,30 @@ scripts/serve.sh                 # config/rt3060.env
 | `-np` | 1 | `-np 2` splits the pool to 16,384 tokens per slot and costs VRAM |
 | `--reasoning-budget` | 2048 | thinking dominates latency at 29 tok/s |
 | `reasoning_effort` | medium | documented as about as accurate at moderate limits |
+| `--spec-type` | `ngram-simple` | 4.9-6.0x when the output reuses the context, inert otherwise (ADR 0003) |
 | mmproj | off GPU | 0.63 GB, only needed for image input |
+
+## Operating profiles
+
+One server serves both modes, because `reasoning_effort` is a per-request field.
+`ngram-simple` is harmless when it does not apply, so it stays on in both.
+
+| | Reasoning chat | Agentic / mechanical edits |
+|---|---|---|
+| `reasoning_effort` in the request | `medium` (server default) | **`none`** |
+| decode | 28.5 t/s | **146 t/s** |
+| prefill | 494 t/s | 494 t/s |
+| speculation | inert (0 drafts) | 279 drafts, 85% accepted |
+| when to use | hard problems, math, planning | reading and rewriting files, refactors, mechanical edits |
+
+The mode difference is the single largest performance fact about this setup: **5x on
+decode**, larger than every kernel-level opportunity combined. It is a quality trade, so
+it belongs to the caller, not to the server default - but a caller that does not send it
+for mechanical work is leaving 5x on the table.
+
+Trap worth repeating: `thinking_budget_tokens: 0` does **not** disable thinking and
+therefore does **not** unlock speculation. Only `reasoning_effort: "none"` does. See
+[ADR 0003](decisions/0003-ngram-speculation.md).
 
 ## Measured performance
 
@@ -103,16 +126,23 @@ exactly (perplexity 5.8953 vs 5.8953, identical greedy tokens) on
 | `-ub` 1024/2048, `-b` 4096 | within 1.5% of default, i.e. noise |
 | `-np` 2 | halves per-slot context to 16,384 and raises VRAM |
 | tuning `PQ2_0` prefill | at the dp4a roofline already |
+| CUDA graphs / launch batching | GPU is saturated; ~1967 launches/token are already hidden |
+| `ngram-cache` speculation | 2.19x vs 4.90x for `ngram-simple`, so not worth carrying |
+| speculation while thinking | 0 drafts at every thinking level; inert |
 
 ## What would still move the needle
 
-1. **Identify the ~9.3 ms.** Only profiling will say whether it is launch overhead
-   (~1.6 us x launch count), the gated-delta-net scan path in the 48 linear-attention
-   layers, or the full-attention layers. This is the prerequisite for any kernel work.
-2. **Tensor cores for prefill.** The only route past 483 t/s, and it needs a different
+1. **The GEMV's 15.7% gap to the bandwidth roofline** (~4.5 ms/token, 13% of decode). The
+   inner loop is already `dp4a`-based, so this is a bounded, hard target.
+2. **Fusing the normalisation/quantisation plumbing**: `rms_norm_f32` (209 calls),
+   `scale_f32` (48), `quantize_q8_1` (361) and `cpy_scalar` (112) cost ~2.1 ms/token
+   across 730 launches and are *not* bandwidth-saturated, unlike the GEMV. Quantising a
+   shared rotated activation once instead of once per consumer is the concrete version.
+3. **Tensor cores for prefill.** The only route past 483 t/s, and it needs a different
    weight packing plus mma kernels: a re-architecture, not a tuning pass.
-3. **Speculative decoding.** Not a kernel change and not yet tried; the fork ships
-   `llama-lookup` (prompt-lookup, no drafter model needed) which suits agentic and code
-   workloads where output copies context.
 4. **Beyond ~74K context.** Requires a quantized cache and therefore accepting the
    measured speed penalty plus calibrating the mean-centering bias.
+
+Speculative decoding was item 3 on this list before it was measured; it is now the
+configuration default and worth 4.9-6.0x, far more than items 1-2 combined
+([ADR 0003](decisions/0003-ngram-speculation.md)).

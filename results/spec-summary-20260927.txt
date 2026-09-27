@@ -1,0 +1,15 @@
+# n-gram speculative decoding: extracted results (llama-cli, temp 0)
+# source: verbose logs from scripts/specbench.sh, regenerable; not tracked
+# reasoning modes: 'code/copy/chat' rows below were collected with REASONING=off
+workload,spec_type,tokens,gen_t_per_s,drafts,accepted,accept_pct
+prompt-chat,ngram-simple,237,28.49,0,0,-
+prompt-chat,none,237,28.57,0,0,-
+prompt-code,ngram-simple,256,28.43,0,0,-
+prompt-code,ngram-simple,256,139.88,6,6,100%
+prompt-code,none,256,28.45,0,0,-
+prompt-code,none,256,28.56,0,0,-
+prompt-copy,ngram-cache,256,62.49,31,31,100%
+prompt-copy,ngram-mod,256,142.58,4,4,100%
+prompt-copy,ngram-simple,256,171.56,5,5,100%
+prompt-copy,none,256,28.58,0,0,-
+prompt-copy,none,300,28.67,0,0,-

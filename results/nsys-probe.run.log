@@ -1,0 +1,40 @@
+
+
+Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\ 
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b10743-adfffbe41
+model      : models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf
+ftype      : PQ2_0 - 2.13 bpw (group 128)
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+
+> The capital of France is
+
+[Start thinking]
+
+The user is asking
+
+[ Prompt: 155.5 t/s | Generation: 22.2 t/s ]
+
+
+Exiting...
+Generating '/tmp/nsys-report-fb68.qdstrm'
+[1/1] [0%                          ] nsys-probe.nsys-rep[1/1] [0%                          ] nsys-probe.nsys-rep[1/1] [8%                          ] nsys-probe.nsys-rep[1/1] [=16%                        ] nsys-probe.nsys-rep[1/1] [=17%                        ] nsys-probe.nsys-rep[1/1] [==18%                       ] nsys-probe.nsys-rep[1/1] [============54%             ] nsys-probe.nsys-rep[1/1] [===================80%      ] nsys-probe.nsys-rep[1/1] [========================100%] nsys-probe.nsys-rep[1/1] [========================100%] nsys-probe.nsys-rep
+Generated:
+    /home/penta/repos/eobonsai/results/nsys-probe.nsys-rep

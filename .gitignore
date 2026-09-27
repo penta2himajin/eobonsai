@@ -14,3 +14,15 @@ out/
 # Nothing under results/ is ignored on purpose: those logs and CSVs are the
 # evidence trail that every number in docs/ cites. Do not add a blanket *.log
 # rule here, it would silently drop them.
+
+# nsys binary artifacts. Regenerate with scripts/profile-nsys.sh or the nsys commands
+# in docs/decode-profile.md; the text/CSV extractions next to them are the evidence
+# that gets committed.
+results/*.nsys-rep
+results/*.sqlite
+
+# Verbose llama-cli logs from scripts/specbench.sh. The extracted summary next to them
+# (results/spec-summary-*.txt) is what gets committed; these are regenerable.
+results/spec-*.log
+results/*.none
+results/*.spec

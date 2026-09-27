@@ -1,0 +1,14 @@
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 11904 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 11904 MiB
+load_backend: loaded CUDA backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cuda.so
+load_backend: loaded RPC backend from /home/penta/repos/eobonsai/bin/cuda/libggml-rpc.so
+load_backend: loaded CPU backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cpu-haswell.so
+| model                          |       size |     params | backend    | ngl |  fa |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --: | --------------: | -------------------: |
+| qwen35 27B PQ2_0 - 2.13 bpw (group 128) |   6.70 GiB |    26.90 B | CUDA       |  99 |   1 |            tg64 |         28.86 ± 0.00 |
+
+build: adfffbe41 (10743)
+Generating '/tmp/nsys-report-6a55.qdstrm'
+[1/1] [0%                          ] nsys-decode.nsys-rep[1/1] [0%                          ] nsys-decode.nsys-rep[1/1] [14%                         ] nsys-decode.nsys-rep[1/1] [====27%                     ] nsys-decode.nsys-rep[1/1] [====================85%     ] nsys-decode.nsys-rep[1/1] [========================100%] nsys-decode.nsys-rep[1/1] [========================100%] nsys-decode.nsys-rep
+Generated:
+    /home/penta/repos/eobonsai/results/nsys-decode.nsys-rep

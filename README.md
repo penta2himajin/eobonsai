@@ -51,17 +51,22 @@ bin/, models/, out/, build/   downloaded or generated (not tracked)
 
 ## Where this stands
 
+**The headline:** decode is **4.9-6.0x faster** for work that reuses the context, via the
+fork's draft-model-free n-gram speculation, once thinking is turned off for that request.
+Agentic code editing measured 28.6 -> 140 t/s (CLI) and 28.5 -> 146 t/s (serving).
+See [ADR 0003](docs/decisions/0003-ngram-speculation.md).
+
 **Settled and verified end to end:** the pinned fork runs the ternary model correctly on
 CUDA 12.4 and the sm_86 source build reproduces it exactly (perplexity and greedy tokens);
 prefill is at the card's `dp4a` roofline; packing, KV type, batch shape and slot count are
-decided by measurement; and the serving layer works (llama-server, OpenAI-compatible
-endpoint, start/stop, telemetry). The configuration to run is in
-[docs/rt3060-profile.md](docs/rt3060-profile.md).
+decided by measurement; the serving layer works (llama-server, OpenAI-compatible endpoint,
+start/stop, telemetry); and the decode budget is now decomposed per kernel. The
+configuration to run is in [docs/rt3060-profile.md](docs/rt3060-profile.md).
 
-**Open:** about 9.3 ms per decode token is unaccounted for after weight streaming, the
-Hadamard passes and KV traffic. Identifying it needs a kernel profiler (`nsys` or `ncu`),
-neither of which is available on this machine yet. That is the prerequisite for any
-kernel-level work.
+**Open:** decode is 34.45 ms/token and the GPU is saturated (100.7% of wall clock), with
+82.6% of it in the ternary GEMV at 84.3% of the bandwidth roofline. The remaining levers
+are the GEMV's 15.7% gap and ~2.1 ms of non-bandwidth-saturated norm/quantise plumbing;
+both are bounded and hard. See [docs/decode-profile.md](docs/decode-profile.md).
 
 **Rejected by measurement:** `PTQ1_0` (decode -24%), quantized KV caches (slower at every
 depth), and `-ub`/`-b`/`-np` tuning (within noise). Two predictions built from bandwidth

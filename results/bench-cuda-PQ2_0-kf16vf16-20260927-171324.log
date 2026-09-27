@@ -1,0 +1,24 @@
+### provenance
+binary_dir : bin/cuda
+model      : Ternary-Bonsai-2-27B-PQ2_0.gguf  (7206168928 bytes)
+fork_commit: adfffbe41b2cabcd51fff326ab045662265062bb
+kv_type    : k=f16 v=f16    reps: 3
+date       : 2026-09-27T17:13:24+09:00
+loadavg    : 5.78 9.44 7.85 3/4814 2904336   <- must be idle for a fair comparison
+### gpu
+name, memory.used [MiB], memory.total [MiB], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu, power.draw [W], power.limit [W]
+NVIDIA GeForce RTX 3060, 578 MiB, 12288 MiB, 1942 MHz, 7301 MHz, 70, 149.88 W, 180.00 W
+
+### PP (prompt processing)
+$ llama-bench -m <model> -ngl 99 -fa on  -r 3 -p 512,2048 -n 0 -d 0 -ub 2048
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 11904 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 11904 MiB
+load_backend: loaded CUDA backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cuda.so
+load_backend: loaded RPC backend from /home/penta/repos/eobonsai/bin/cuda/libggml-rpc.so
+load_backend: loaded CPU backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cpu-haswell.so
+| model                          |       size |     params | backend    | ngl | n_ubatch |  fa |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | -------: | --: | --------------: | -------------------: |
+| qwen35 27B PQ2_0 - 2.13 bpw (group 128) |   6.70 GiB |    26.90 B | CUDA       |  99 |     2048 |   1 |           pp512 |        487.97 ± 5.54 |
+| qwen35 27B PQ2_0 - 2.13 bpw (group 128) |   6.70 GiB |    26.90 B | CUDA       |  99 |     2048 |   1 |          pp2048 |        494.37 ± 1.07 |
+
+build: adfffbe41 (10743)

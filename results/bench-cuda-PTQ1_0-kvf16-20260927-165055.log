@@ -1,0 +1,41 @@
+### provenance
+binary_dir : bin/cuda
+model      : Ternary-Bonsai-2-27B-PTQ1_0.gguf  (5946648928 bytes)
+fork_commit: adfffbe41b2cabcd51fff326ab045662265062bb
+kv_type    : f16    reps: 3
+date       : 2026-09-27T16:50:55+09:00
+loadavg    : 1.97 4.08 5.95 3/4822 2882150   <- must be idle for a fair comparison
+### gpu
+name, memory.used [MiB], memory.total [MiB], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu, power.draw [W], power.limit [W]
+NVIDIA GeForce RTX 3060, 588 MiB, 12288 MiB, 540 MHz, 810 MHz, 45, 22.26 W, 180.00 W
+
+### PP (prompt processing)
+$ llama-bench -m <model> -ngl 99 -fa on  -r 3 -p 128,512,2048,8192 -n 0 -d 0
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 11904 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 11904 MiB
+load_backend: loaded CUDA backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cuda.so
+load_backend: loaded RPC backend from /home/penta/repos/eobonsai/bin/cuda/libggml-rpc.so
+load_backend: loaded CPU backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cpu-haswell.so
+| model                          |       size |     params | backend    | ngl |  fa |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --: | --------------: | -------------------: |
+| qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128) |   5.53 GiB |    26.90 B | CUDA       |  99 |   1 |           pp128 |       490.10 ± 31.15 |
+| qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128) |   5.53 GiB |    26.90 B | CUDA       |  99 |   1 |           pp512 |       515.84 ± 11.69 |
+| qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128) |   5.53 GiB |    26.90 B | CUDA       |  99 |   1 |          pp2048 |        516.98 ± 0.17 |
+| qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128) |   5.53 GiB |    26.90 B | CUDA       |  99 |   1 |          pp8192 |        477.53 ± 0.64 |
+
+build: adfffbe41 (10743)
+
+### TG (token generation)
+$ llama-bench -m <model> -ngl 99 -fa on  -r 3 -p 0 -n 128 -d 0,8192,32768
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 11904 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 11904 MiB
+load_backend: loaded CUDA backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cuda.so
+load_backend: loaded RPC backend from /home/penta/repos/eobonsai/bin/cuda/libggml-rpc.so
+load_backend: loaded CPU backend from /home/penta/repos/eobonsai/bin/cuda/libggml-cpu-haswell.so
+| model                          |       size |     params | backend    | ngl |  fa |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --: | --------------: | -------------------: |
+| qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128) |   5.53 GiB |    26.90 B | CUDA       |  99 |   1 |           tg128 |         22.51 ± 0.04 |
+| qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128) |   5.53 GiB |    26.90 B | CUDA       |  99 |   1 |   tg128 @ d8192 |         21.61 ± 0.02 |
+| qwen35 27B PTQ1_0 - 1.75 bpw ternary (group 128) |   5.53 GiB |    26.90 B | CUDA       |  99 |   1 |  tg128 @ d32768 |         19.32 ± 0.03 |
+
+build: adfffbe41 (10743)

@@ -1,0 +1,39 @@
+
+
+Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\ 
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-adfffbe
+model      : /home/penta/repos/eobonsai/models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf
+ftype      : PQ2_0 - 2.13 bpw (group 128)
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+
+> The capital of France is
+
+[Start thinking]
+
+User asks: "The capital of France is". Need answer concise. Final: Paris.
+[End thinking]
+
+Paris
+
+[ Prompt: 158.2 t/s | Generation: 28.9 t/s ]
+
+
+Exiting...

@@ -1,0 +1,19 @@
+### roofline microbenchmarks
+date     : 2026-09-27T16:35:11+09:00
+arch     : sm_86   cuda: Cuda compilation tools, release 12.4, V12.4.131
+gpu      : NVIDIA GeForce RTX 3060, 595.91.07, 2160 MHz, 7501 MHz, 12288 MiB
+
+device: 28 SMs, sm_86, 1837 MHz, 11.6 GiB VRAM
+
+read bandwidth      :   298.62 GB/s   (4.00 GiB buffer, 10 reps)
+empty launch        :    1.645 us/launch (20000 launches, back-to-back)
+null-work launch    :    1.639 us/launch (20000 launches, 28 blocks x 256)
+dp4a peak           :     26.0 TOPS(int8)  = 12982 GMAC/s  (28 SMs x 8 blocks)
+fp32 fma (cuda core):    11.67 TFLOPS   (2 GHz x 28 SMs x 128 lanes)
+fp16x2 fma (cuda core):    13.08 TFLOPS   (2 GHz x 28 SMs x 128 lanes)
+
+FWHT (block 1024, one block per row, as the fork launches it)
+fwht decode w=5120   :     2.06 us/call    19.89 GB/s  (5 blocks)
+fwht decode w=17408  :     2.07 us/call    67.22 GB/s  (17 blocks)
+fwht pp512 w=5120    :    68.40 us/call   306.60 GB/s  (2560 blocks)
+fwht pp512 w=17408   :   248.65 us/call   286.76 GB/s  (8704 blocks)

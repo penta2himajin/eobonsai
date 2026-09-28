@@ -1,0 +1,95 @@
+# The speculative loop, profiled: the GPU is idle 31% of the generation
+
+Profiles the served speculative decode (`scripts/profile-spec-loop.sh`, Nsight Systems tracing of
+`llama-server`, one copy-workload request inside the capture window). Answer to "is there any decode
+speedup left", after `results/gemv-headroom-post-0002-20260928.txt` closed the kernel side.
+
+Request: `fixtures/prompts/verbatim-copy.txt`, max_tokens 512, `ngram-simple` 6/384, prefix cache
+warm. Raw: `results/nsys-spec-server-20260928-195125.nsys-rep`, request record in the matching
+`.requests.jsonl`.
+
+    draft_n 621, accepted 503, generated 512, predicted 1929.0 ms -> 264.9 t/s
+
+## GPU busy fraction
+
+    summed GPU kernel time (nsys)      1330.3 ms over 13842 launches
+    generation wall (server-reported)  1929.0 ms
+    GPU busy                            69.0%
+
+So **31% of the generation wall time the GPU runs no kernel**. For contrast, non-speculation decode
+is 100.7% busy (kernel time 34.45 ms against 34.22 ms of wall, ADR 0003), so this idle is created by
+the speculative path, not inherited from the decode step. A second capture at max_tokens 512
+(`results/nsys-spec-server-20260928-195015.nsys-rep`) agreed on the mechanism.
+
+Caveat: nsys inflates wall time, so 69% is a lower bound on the true busy fraction in an unprofiled
+run. The direction and rough size are solid; the exact number is not.
+
+## Kernel mix during the speculative generation
+
+    mul_mat_q (batched GEMM path)          852.6 ms  64.1%   1203x
+    gated_delta_net_cuda                   120.4 ms   9.0%    288x
+    fwht_cuda_block                         36.5 ms   2.7%   1542x
+    unary_gated_op (silu)                   33.3 ms   2.5%    632x
+    quantize_mmq_q8_1                       29.5 ms   2.2%   1203x
+    flash_attn_ext_f16                      19.7 ms   1.5%     64x
+    everything else                        ~238 ms  17.9%
+
+The verification passes run through `mul_mat_q`, the same batched MMQ family as prefill, so the
+mechanism is as intended: a draft of N tokens is verified with a batched pass instead of N decode
+steps. Rejected drafts show up as `mul_mat_vec_q` passes with tiny column counts.
+
+## A correction to my own first reading
+
+My first pass read `mul_mat_q<(ggml_type)142, (int)112, (bool)0>` as a 112-column batch. It is not:
+the signature is `template <ggml_type type, int J, bool fallback>` (`mmq.cuh:1054`), so the second
+argument is `J`, the stream-k tile parameter. **Any batch size inferred from a kernel name is
+wrong.** The batch size is only visible in the request's `draft_n`, which is where it was taken
+from here.
+
+## Is a small verification batch the problem? No
+
+Clean prefill curve, no profiler, `PHASES=pp PP_LIST=64,112,128,256,512,1024 REPS=3`
+(`results/bench-bin-PQ2_0-kf16vf16-20260928-195235.log`):
+
+| batch | pp t/s |
+|---:|---:|
+| 64 | 470.34 |
+| 112 | 556.38 |
+| 128 | 569.12 |
+| 256 | 588.53 |
+| 512 | 595.75 |
+| 1024 | 575.29 |
+
+Nearly flat above 112, so a ~112-token batch is not inherently inefficient and "small-batch
+penalty" does not explain the gap. The loop is the gap: the request processed
+`draft_n + (generated - accepted)` = 621 + 9 = 630 target positions to yield 512 tokens, i.e.
+512/1.929 s = **265 t/s against a 556 t/s prefill at the same batch size, 48%**. The rest is the
+31% idle plus per-position overhead from drafting, verification bookkeeping and sampling.
+
+## Two flags on the machine state and on the ceiling
+
+1. **Not a quiet machine.** loadavg was 2.62 at the start of the benchmark and 4.0 after it, and
+   another project's `llama-server` (port 8093, Qwen3.8 IQ1_M) is resident on this host. It held no
+   VRAM during the benchmark (`nvidia-smi` showed 834 MiB used, rustdesk only), but by the rules in
+   `AGENTS.md` these numbers are provisional.
+
+2. **pp512 does not reconcile with the recorded ceiling.** This run measured 595.75 t/s; the
+   recorded baseline is 493.8 t/s (`docs/roofline-rtx3060.md`), and the corrected dp4a bound is
+   ~534 t/s. 595.75 t/s implies 1.45e13 int8 MAC/s, above the 1.32e13 the hardware can issue
+   (28 SM x 64 INT32 lanes x 4 MAC x 1.837 GHz). One of the two measurements must be wrong, or the
+   bound is wrong, and until that is settled **neither figure should be quoted as the ceiling**.
+   Nothing in `patches/0002`/`0003` touches the prefill path, so this is not explained by the local
+   patches. It needs its own measurement on a quiet machine.
+
+## What this says about the remaining decode headroom
+
+- Non-speculation decode: no identified target (the GEMV reads at 107% of the post-0002 reference).
+- Copy workloads: the 10x is real, and **up to ~2x more is sitting in the speculative loop**, not in
+  the weight pass. Decomposed: removing the 31% idle would take the generation from 265 to 385 t/s
+  (512 tokens in the 1330 ms the GPU actually works), and making the 630 processed positions cost
+  what pp112 costs would take it from 385 to ~556 t/s. That is 1.45x and 1.17x respectively. Both
+  are loop overhead: CPU-side drafting and bookkeeping for the first, sampling and accept work per
+  position for the second.
+- Non-copy workloads: still 1.0x, and only a draft model moves that.
+- Before either number is pursued, settle the pp512 inconsistency above: if the 556-596 t/s prefill
+  figures are wrong, so is the target they imply.

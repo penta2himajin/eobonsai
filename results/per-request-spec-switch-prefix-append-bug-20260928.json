@@ -1,0 +1,62 @@
+[
+  {
+    "case": "absent",
+    "status": 200,
+    "draft_n": 249,
+    "draft_n_accepted": 249,
+    "cache_n": 1902,
+    "prompt_n": 4,
+    "predicted_per_second": 314.9761915055244
+  },
+  {
+    "case": "type=none",
+    "status": 200,
+    "draft_n": null,
+    "draft_n_accepted": null,
+    "cache_n": 1902,
+    "prompt_n": 4,
+    "predicted_per_second": 29.8053778953733
+  },
+  {
+    "case": "absent again",
+    "status": 200,
+    "draft_n": 249,
+    "draft_n_accepted": 249,
+    "cache_n": 1902,
+    "prompt_n": 4,
+    "predicted_per_second": 313.7299289740047
+  },
+  {
+    "case": "type=ngram-simple",
+    "status": 400,
+    "error": "Field 'type': this server runs --spec-type none,ngram-simple; a request can only repeat that or send \"none\""
+  },
+  {
+    "case": "type=ngram-mod",
+    "status": 400,
+    "error": "Field 'type': this server runs --spec-type none,ngram-simple; a request can only repeat that or send \"none\""
+  },
+  {
+    "case": "type=bogus",
+    "status": 400,
+    "error": "Field 'type': unknown speculative type: bogus"
+  },
+  {
+    "case": "type=none",
+    "status": 200,
+    "draft_n": null,
+    "draft_n_accepted": null,
+    "cache_n": 1902,
+    "prompt_n": 4,
+    "predicted_per_second": 29.84122711806886
+  },
+  {
+    "case": "absent final",
+    "status": 200,
+    "draft_n": 249,
+    "draft_n_accepted": 249,
+    "cache_n": 1902,
+    "prompt_n": 4,
+    "predicted_per_second": 311.6947884631369
+  }
+]

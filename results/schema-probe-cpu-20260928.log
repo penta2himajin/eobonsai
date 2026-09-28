@@ -1,0 +1,22 @@
+### CPU-only probe server (the GPU device nodes are absent from this container)
+date    : 2026-09-28T12:11+09:00
+binary  : build/llama-sm86/bin/llama-server  (built 12:10:45 from pinned commit + patches/0002 + the unfinished speculative schema block enabled)
+flags   : -m models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf -ngl 0 -c 512 -ub 128 -b 256 -np 1 -t 8 --host 127.0.0.1 --port 8099 --jinja
+note    : --gpu-layers was ignored because no CUDA device is visible; see the first log line
+
+0.00.005.352 E ggml_cuda_init: failed to initialize CUDA: no CUDA-capable device is detected
+warning: no usable GPU found, --gpu-layers option will be ignored
+warning: one possible reason is that llama.cpp was compiled without GPU support
+warning: consult docs/build.md for compilation instructions
+0.00.007.308 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.007.662 W srv  llama_server: -----------------
+0.00.007.663 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+0.00.007.663 W srv  llama_server: this can be a security risk (cross-origin attacks)
+0.00.007.663 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+0.00.007.663 W srv  llama_server: -----------------
+0.00.008.964 I srv    load_model: loading model 'models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf'
+0.01.615.205 I cmn          init: llama threadpool init, n_threads = 8
+0.03.281.655 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 512, kv_unified = 'false'
+0.03.286.239 I srv          init: chat template supports preserving reasoning, consider enabling it via --reasoning-preserve
+0.03.286.297 I srv  llama_server: model loaded
+0.03.286.302 I srv  llama_server: listening on http://127.0.0.1:8099

@@ -1,0 +1,31 @@
+
+low-overlap  (fixtures/prompts/low-overlap-chat.txt, max_tokens=128)
+arm     rep HTTP  draft_n accepted  cache_n prompt_n   gen t/s
+------------------------------------------------------------------------
+off       1  200        -        -       30        4     30.04
+off       2  200        -        -       30        4     29.80
+off       3  200        -        -       30        4     29.82
+       mean             -        -                       29.89
+on        1  200        0        0       30        4     30.06
+on        2  200        0        0       30        4     30.07
+on        3  200        0        0       30        4     29.82
+       mean           0.0      0.0                       29.98
+
+code-edit  (fixtures/prompts/code-edit.txt, max_tokens=256)
+arm     rep HTTP  draft_n accepted  cache_n prompt_n   gen t/s
+------------------------------------------------------------------------
+off       1  200        -        -     1902        4     29.71
+off       2  200        -        -     1902        4     29.83
+off       3  200        -        -     1902        4     29.85
+       mean             -        -                       29.80
+on        1  200      249      249     1902        4    310.99
+on        2  200      249      249     1902        4    308.16
+on        3  200      249      249     1902        4    308.33
+       mean         249.0    249.0                      309.16
+
+workload       arm    mean t/s  mean draft_n  mean accepted
+--------------------------------------------------------------
+low-overlap    off       29.89             -              -
+low-overlap    on        29.98           0.0            0.0
+code-edit      off       29.80             -              -
+code-edit      on       309.16         249.0          249.0

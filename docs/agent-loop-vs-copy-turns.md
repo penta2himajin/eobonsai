@@ -52,5 +52,27 @@ the better default; the 249 t/s figure requires a workload whose answers are lon
 
 ## Not measured
 
-Throughput through DSH (only its route and reasoning field were verified), and whether a
-per-request mechanism could choose speculation per request rather than per server run.
+## Measured since: a per-request mechanism
+
+`patches/0003` adds it. A request turns speculation off for its own generation with
+`"speculative": {"type": "none"}`; omitting the object keeps the server setting. One server, one
+prompt, three reps:
+
+| workload | arm | mean t/s | mean draft_n |
+|---|---|---:|---:|
+| low-overlap (novel short answer) | off | 29.89 | - |
+| low-overlap | on | 29.98 | 0 |
+| code-edit (full-file rewrite) | off | 29.80 | - |
+| **code-edit** | **on** | **309.16** | **249** (all accepted) |
+
+So the 9x gap above is now a per-request choice rather than a server restart, and the on -> off ->
+on transition was walked twice with the counters following it exactly. Only on/off is supported:
+the context is built once at load, so a request cannot pick a different method, and any other
+name is rejected with a 400 instead of being ignored. Full write-up:
+`results/per-request-spec-20260928.txt`.
+
+The low-overlap proxy above does not reproduce the Pi loss in the first table (28.2 off against
+24.9 and 16.9 on); with draft 384 and no ngram match it shows "no gain" rather than a loss. The
+Pi numbers stay the evidence that off is the right default for an agent loop.
+
+Still not measured: throughput through DSH.

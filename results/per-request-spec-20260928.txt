@@ -1,0 +1,100 @@
+# Per-request speculative switching works: off 29.8 t/s, on 309 t/s, same server
+
+Implements and measures the Next action from issue #1. Patch:
+`patches/0003-server-per-request-speculative.patch`. The request field is nested:
+`{"speculative": {"type": "none"}}` turns speculation off for that request, and omitting the
+object keeps the server setting.
+
+## What the field means, and what it cannot do
+
+The speculative context is built once from the server launch parameters
+(`server-context.cpp:1189`). A request therefore cannot choose a *method*; it can only use what
+the server built, or nothing. Any other method name is rejected instead of silently ignored:
+
+    {"speculative":{"type":"ngram-mod"}}  ->  400
+      Field 'type': this server runs --spec-type ngram-simple; a request can only repeat that or send "none"
+    {"speculative":{"type":"bogus"}}      ->  400
+      Field 'type': unknown speculative type: bogus
+
+Two hunks carry the change:
+
+- `server-schema.cpp`: the disabled upstream block is replaced by `field_nested("speculative")`
+  with a single `type` subfield. The numeric fields upstream declared (`n_max`, `n_min`, `p_min`
+  and the three `uint16_t` ngram sizes) are not registered: nothing reads them, and the `uint16_t`
+  ones need a `common_json` instantiation that does not exist. See
+  `results/schema-probe-20260928.txt`.
+- `server-context.cpp`, in `launch_slot_with_task`: set `slot.spec` to `nullptr` when the request
+  asks for `none`, and set `slot.stats.speculative` from the same decision. `slot.can_speculate()`
+  then gates `get_n_draft_max()` (`server-context.cpp:439`) and with it the draft, begin, sample
+  and accept paths at 2912-2954, 3753, 3760 and 3813. Nothing else changes.
+
+## The switch, one server, one prompt
+
+`fixtures/prompts/code-edit.txt`, max_tokens 256. Server: `-ngl 99 -fa on -c 32768 -np 1
+--spec-type ngram-simple --spec-ngram-simple-size-n 6 --spec-ngram-simple-size-m 384`, binary
+built from the pinned commit plus `patches/0002` and `patches/0003`.
+Raw: `results/per-request-spec-switch-20260928-152206.txt`.
+
+    case                 HTTP  draft_n accepted  cache_n prompt_n   gen t/s
+    absent                200      249      249        0     1906    260.14
+    type=none             200        -        -     1902        4     29.85
+    absent again          200      249      249     1902        4    308.19
+    type=ngram-simple     200      249      249     1902        4    314.04
+    type=ngram-mod        400        -        -        -        -         -
+    type=bogus            400        -        -        -        -         -
+    type=none             200        -        -     1902        4     29.83
+    absent final          200      249      249     1902        4    313.27
+
+The on -> off -> on transition is walked twice and the counters follow it exactly, so an off
+request leaves no stale draft behind for the next one. The first row is cold (cache_n 0).
+
+## The switch, two workloads x two arms, 3 reps each
+
+Raw: `results/per-request-spec-matrix-20260928-152232.txt` and `.json`.
+
+    workload       arm    mean t/s  mean draft_n  mean accepted
+    low-overlap    off       29.89             -              -
+    low-overlap    on        29.98           0.0            0.0
+    code-edit      off       29.80             -              -
+    code-edit      on       309.16         249.0          249.0
+
+Against the goal, "creation with speculation off, modification with it on, same code":
+
+- The modification workload is **10.4x faster with speculation**: 29.80 -> 309.16 t/s. It asks for
+  the complete modified file, so the answer copies its own input, and all 249 drafted tokens are
+  accepted.
+- The creation workload gains nothing: 29.89 off against 29.98 on, zero drafts. Turning speculation
+  off for creation costs nothing here.
+
+Caveat, stated because it matters: this low-overlap proxy does **not** reproduce the loss that
+`docs/agent-loop-vs-copy-turns.md` measured through Pi (28.2 t/s off against 24.9 and 16.9 on).
+With draft 384 and no ngram match the matcher pays nothing, so the proxy shows "no gain" rather
+than "a loss". The Pi numbers remain the evidence that off is the right default for an agent loop;
+this test only shows the mechanism can deliver either behaviour on demand.
+
+## Gates
+
+- correctness, `scripts/parity-check.sh bin/cuda build/llama-sm86/bin PQ2_0`: perplexity 5.3590
+  for both, delta 0.0000%, greedy tokens identical, **PASS**.
+  `results/parity-per-request-spec-20260928-152128.log`
+- served-shape regression, `PHASES=cli scripts/bench.sh build/llama-sm86/bin PQ2_0`:
+  30.1 / 30.6 / 30.3 t/s over three runs, inside the recorded `patches/0002` baseline of
+  28.8-30.6 t/s. `results/bench-bin-PQ2_0-kf16vf16-20260928-152349.log`. The load average in that
+  log was 3.44, not fully idle, so treat it as provisional; it is consistent with the baseline.
+
+## Residual asymmetry, measured as not material
+
+`common_speculative_process` (`server-context.cpp:3658`) is gated on the server-wide spec pointer,
+not on the slot, so an off request still feeds the ngram map for its own sequence. The off arm
+measured 29.80-29.89 t/s against a recorded no-speculation baseline of 28.8-30.6 t/s, so the
+leftover work is not visible at this granularity. Gating it would need a per-sequence skip inside
+a whole-batch call, which is why it was left alone.
+
+## One intermediate failure, kept
+
+`--spec-type` appends to the default `{none}` (`common/arg.cpp:4187`), so
+`params_base.speculative.types` is `{none, ngram-simple}`, not `{ngram-simple}`. The first build
+compared against the raw vector and rejected a legitimate `ngram-simple` request with
+"this server runs --spec-type none,ngram-simple". The fix drops `none` before comparing. The
+rejected run is kept as
+`results/per-request-spec-switch-prefix-append-bug-20260928.json`.

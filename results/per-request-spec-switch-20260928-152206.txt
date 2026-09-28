@@ -1,0 +1,11 @@
+POST http://127.0.0.1:8080/v1/chat/completions   prompt=fixtures/prompts/code-edit.txt (6141 chars)   max_tokens=256
+case                 HTTP  draft_n accepted  cache_n prompt_n   gen t/s  note
+--------------------------------------------------------------------------------------------------------
+absent                200      249      249        0     1906    260.14
+type=none             200        -        -     1902        4     29.85
+absent again          200      249      249     1902        4    308.19
+type=ngram-simple     200      249      249     1902        4    314.04
+type=ngram-mod        400        -        -        -        -         -  Field 'type': this server runs --spec-type ngram-simple; a request can only repeat that or send "none"
+type=bogus            400        -        -        -        -         -  Field 'type': unknown speculative type: bogus
+type=none             200        -        -     1902        4     29.83
+absent final          200      249      249     1902        4    313.27

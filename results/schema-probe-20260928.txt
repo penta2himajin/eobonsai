@@ -1,0 +1,116 @@
+# The speculative request block: three blockers, and the contract it actually supports
+
+Correction and extension of `results/per-request-spec-blocked-20260928.txt`. That file says the
+unclosed paren is on the `speculative.ngram_min_hits` call and gives line numbers that do not
+match the file; it is the `speculative.n_min` call. It also missed a second blocker (a link
+error) and a third (the field matches a flat key, not the nested object the clients send).
+
+## Environment caveat, recorded first
+
+The GPU device nodes are missing from this session's container:
+
+    $ ls /dev/nvidia*
+    ls: cannot access '/dev/nvidia*': No such file or directory
+    $ nvidia-smi
+    NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.
+    $ grep CapEff /proc/self/status
+    CapEff:	0000000000000000
+
+The driver is loaded and sees the card (`/proc/driver/nvidia/gpus/.../information` reports the
+RTX 3060, Device Minor 0); only the container's `/dev` lacks the nodes, and with no capabilities
+they cannot be recreated. So nothing here is a t/s measurement. What is here is a static audit,
+a compile/link result, and a functional check run CPU-only with `-ngl 0`, logged in
+`results/schema-probe-cpu-20260928.log`.
+
+## Blocker 1: the unclosed paren is `speculative.n_min`, not `ngram_min_hits`
+
+Static audit of the guarded block, paren balance per `add()` statement before any edit:
+
+    statement at L204, speculative.n_min   balance +1
+    every other statement                  balance  0
+
+The call is
+
+    add((new field_num("speculative.n_min", params.speculative.draft.n_min))
+        ->set_hard_limits(0, INT32_MAX)
+        ->set_desc("Minimum number of draft tokens to use for speculative decoding");   <- needs one more )
+
+`add((` opens two parens and the constructor closes one, so the statement must end `));`. This
+matches the compiler's original complaint (`expected ')' before ';'`) once the guard is removed.
+
+## Blocker 2: enabling the block does not link
+
+With blocker 1 fixed and `#if 0` / `#endif` removed, `server-schema.cpp` compiles and the link
+fails:
+
+    /usr/bin/ld: ../../bin/libllama-server-impl.so: undefined reference to
+      `unsigned short common_json::get<unsigned short>() const'
+
+`common/json.cpp` instantiates `common_json::get<T>()` for a fixed list of types
+(`common/json.cpp:405-425`) and `unsigned short` is not in it. Three fields in the block bind
+`uint16_t` members, because `common_params_speculative_ngram_map` declares `size_n`, `size_m`
+and `min_hits` as `uint16_t` (`common/common.h:359-363`), and `field_num<T>::eval` calls
+`data.at(n).get<T>()` (`server-schema.cpp:584-603`).
+
+Verified by building: one added line, `COMMON_JSON_GET(unsigned short)`, links cleanly. That
+line is unnecessary if the block registers only the fields the server intends to honour, since
+`int` and `float` are already instantiated and cover `n_max`, `n_min` and `p_min`.
+
+## Blocker 3: the block matches a flat dotted key, not a nested object
+
+`has_value` does a literal lookup:
+
+    static bool has_value(const json & data, const char * n) {
+        return data.contains(n) && !data.at(n).is_null();     // server-schema.cpp:579-581
+    }
+
+so `field_str("speculative.type")` matches a literal top-level key `"speculative.type"`. It does
+not reach into `"speculative": { "type": ... }`. Every other grouped option in this file uses
+`field_nested` plus `add_subfield` (for example `stream_options`, `server-schema.cpp:26-30`), and
+`field_nested::eval` recurses into the sub-object (`server-schema.cpp:644-653`). The speculative
+block is the only one written as flat dotted names, which is part of what the author left
+unfinished.
+
+Measured against a CPU server built with the block enabled and blocker 2 fixed, so the fields
+are genuinely live. `POST /v1/chat/completions`:
+
+    body                                    HTTP   evidence
+    speculative.n_max = -1                   400   Value must be between 0 <= value <= 2147483647, but got -1
+    speculative = {"n_max": -1}              200   nested object not matched
+    speculative.type = "ngram-simple"        200   parsed; nothing consumes it yet
+    speculative.type = 42                    400   type must be string, but is number
+    speculative = {"type": "none"}           200   nested object not matched
+
+The contract the block as written supports is `{"speculative.type": "..."}`. The nested form used
+in the handoff issue's Verification section never reaches the field, so the earlier
+"accepted and ignored" reading is weaker than recorded: with the guard in place the nested field
+was not looked up at all, and the flat key was the only thing that could have been.
+
+## What the cheap path costs
+
+Registering only `speculative.type` for an on/off switch needs no new json instantiation and no
+`common/json.cpp` edit. Registering the numeric fields is what forces blocker 2, and it invites
+per-request values that no code reads.
+
+`task.params.speculative` is still never consumed: a grep over `tools/server` and `common` finds
+only the write at `server-schema.cpp:214`. `params_base.speculative` drives both the spec context
+(`server-context.cpp:1189`) and the output buffers
+(`server-context.cpp:969-970` -> `n_outputs_max`; `server-context.cpp:3894` ->
+`n_accepted_per_pos`), so a per-request `n_max` larger than the server-level value would overrun
+those buffers. A per-request numeric draft limit must be clamped to
+`common_speculative_n_max(&params_base.speculative)`.
+
+## A useful starting condition, and one dead end
+
+    server-schema.cpp:521     params.speculative = params_base.speculative;
+
+per-request params inherit the server's speculative config before the request body is evaluated.
+An absent field therefore already means "use the server's setting", and only an explicit `"none"`
+turns it off. No "was the field present" flag is needed.
+
+Dead end: a server launched with `--spec-type none` cannot be switched on per request.
+`common_speculative_init` returns `nullptr` when no implementation is enabled
+(`common/speculative.cpp:3409-3412`), and the logs confirm it
+(`spec common_specu: no implementations specified for speculative decoding`). With `spec ==
+nullptr` every speculative path is skipped, so there is no context to enable. The same-server
+design must launch with speculation on and let a request turn it off.

@@ -1,0 +1,34 @@
+[
+  {
+    "workload": "low-overlap",
+    "arm": "off",
+    "reps": 3,
+    "mean_tps": 29.888108891843206,
+    "mean_draft_n": null,
+    "mean_accepted": null
+  },
+  {
+    "workload": "low-overlap",
+    "arm": "on",
+    "reps": 3,
+    "mean_tps": 29.98476401539055,
+    "mean_draft_n": 0.0,
+    "mean_accepted": 0.0
+  },
+  {
+    "workload": "code-edit",
+    "arm": "off",
+    "reps": 3,
+    "mean_tps": 29.798175003255917,
+    "mean_draft_n": null,
+    "mean_accepted": null
+  },
+  {
+    "workload": "code-edit",
+    "arm": "on",
+    "reps": 3,
+    "mean_tps": 309.15828058445607,
+    "mean_draft_n": 249.0,
+    "mean_accepted": 249.0
+  }
+]

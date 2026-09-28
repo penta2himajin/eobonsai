@@ -1,0 +1,50 @@
+[
+  {
+    "workload": "verbatim-copy",
+    "arm": "off",
+    "reps": 3,
+    "mean_tps": 30.366978105716555,
+    "mean_draft_n": null,
+    "mean_accepted": null
+  },
+  {
+    "workload": "verbatim-copy",
+    "arm": "on",
+    "reps": 3,
+    "mean_tps": 261.7103040530698,
+    "mean_draft_n": 122.0,
+    "mean_accepted": 122.0
+  },
+  {
+    "workload": "verbatim-copy",
+    "arm": "auto",
+    "reps": 3,
+    "mean_tps": 268.943698027395,
+    "mean_draft_n": 122.0,
+    "mean_accepted": 122.0
+  },
+  {
+    "workload": "roofline",
+    "arm": "off",
+    "reps": 3,
+    "mean_tps": 27.068270213620945,
+    "mean_draft_n": null,
+    "mean_accepted": null
+  },
+  {
+    "workload": "roofline",
+    "arm": "on",
+    "reps": 3,
+    "mean_tps": 20.459203708329664,
+    "mean_draft_n": 1006.0,
+    "mean_accepted": 7.0
+  },
+  {
+    "workload": "roofline",
+    "arm": "auto",
+    "reps": 3,
+    "mean_tps": 28.03219767890516,
+    "mean_draft_n": 231.0,
+    "mean_accepted": 0.0
+  }
+]

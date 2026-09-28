@@ -1,0 +1,17 @@
+### parity-check: pinned prebuilt vs source build (pinned + 0002 + 0003 combined)
+date    : 2026-09-28T15:45:29+09:00
+loadavg : 3.22 3.35 2.48 8/3494 1374803
+NVIDIA GeForce RTX 3060, 766 MiB, 12288 MiB
+### parity check: bin/cuda  vs  build/llama-sm86/bin   pack=PQ2_0
+corpus: docs/roofline-rtx3060.md  (9099 bytes)
+
+--- perplexity
+  bin/cuda -> 5.3590
+  build/llama-sm86/bin -> 5.3590
+
+--- greedy tokens (-n 48, temp 0, seed 1234)
+  identical
+
+ppl delta: 0.0000%   tokens: match
+PASS
+logs: /home/penta/repos/eobonsai/results/parity-20260928-154529

@@ -1,0 +1,107 @@
+# Automatic speculation switching: a draft-acceptance controller, no extra model
+
+Follows `results/per-request-spec-20260928.txt`. That work made the switch explicit per request;
+this one makes the server decide it. The request field is `"speculative": {"type": "auto"}`.
+
+## Why automatic, measured
+
+`results/pi-multiturn-20260928.txt` shows the workload flips inside a single agent run:
+
+    spec on   (6/384): 474.4, 14.4, 195.8, 20.2, 289.5, 21.5, 268.0, 17.5, 74.8, 16.2, 313.8, 13.5 t/s
+    spec off          : 474.4, 27.9, 155.4, 28.4, 135.6, 28.2 t/s
+
+Copy turns run at 195-474 t/s, tool-call turns at 13.5-21.5 with speculation against 27.9-28.4
+without. The gap alternates, so a fixed per-request field would need the client to classify every
+turn. The server can see the outcome instead of guessing.
+
+## The signal is the draft acceptance ratio, and it is bimodal
+
+Every recorded `draft acceptance` line in `results/` collected and sorted:
+
+    low  cluster: 0.000 0.011 0.016 0.023 0.042 0.064 0.094 0.111 0.114 0.146 0.148 0.173
+                  0.177 0.205 0.219 0.250 0.288 0.341 0.424 0.531
+    high cluster: 0.849 0.882 0.938 1.000 (sixteen at 249/249)
+
+The gap between 0.531 and 0.849 is wide, so a threshold anywhere in 0.6-0.7 separates "speculation
+is paying" from "speculation is burning target forward passes". Rejected drafts cost exactly the
+target compute they consume, so `1 - ratio` is the wasted fraction. The Pi tool turn was
+`3 accepted / 27 generated` (0.111), about twice the work for a third of the output, which is
+where 28 -> 13.5 t/s comes from.
+
+The decision is available almost immediately. `n_draft_tokens / n_draft_verif_steps` separates the
+two regimes in a single step:
+
+    verbatim copy  : 249 accepted / 249 generated, mean len 250.00   -> one step
+    tool call      :   3 accepted /  27 generated, mean len   4.00   -> about seven steps
+
+So the controller latches off after at most one or two verification steps. Being wrong costs one
+step of drafting.
+
+## Implementation
+
+`patches/0003` (the same patch file; the auto layer was folded in so the overlay stays stack-free).
+
+- `server-schema.cpp`: `speculative.type` also accepts `"auto"`, plus two optional subfields that
+  only make sense with it, `accept_min` (default 0.6) and `min_draft` (default 8). Both are
+  validated: out of range, or sent without `"type": "auto"`, is a 400.
+- `server-context.cpp`, in the per-step drafting block: if the request is in auto mode and the
+  cumulative `n_draft_accepted / n_draft_tokens` is under `accept_min` once at least `min_draft`
+  tokens have been drafted, set `slot.spec = nullptr` and stop for the rest of the generation.
+- The latch only happens at a step with no draft pending (`spec_draft` and `spec_i_batch` empty).
+  That is not defensive: `spec_draft` and `spec_i_batch` are consumed as a unit by the accept block,
+  so flipping the switch with a draft in flight would leave drafted tokens in the batch that are
+  neither accepted nor dropped, and `handle_last_sampled_token` would append them as output.
+- A latch prints `speculative auto: stopping, N of M drafted tokens accepted` at INFO level.
+- No new VRAM, no new dependency, no client change, no added time to first token.
+
+## Measured, one server, one binary, three reps
+
+Raw: `results/per-request-spec-auto-20260928-154122.txt` and `.json`;
+latch lines in `results/serve-spec-auto-20260928-153802.log`.
+
+    workload       arm    mean t/s  mean draft_n  mean accepted
+    verbatim-copy  off       30.37             -              -
+    verbatim-copy  on       261.71         122.0          122.0
+    verbatim-copy  auto     268.94         122.0          122.0
+    roofline       off       27.07             -              -
+    roofline       on        20.46        1006.0            7.0
+    roofline       auto      28.03         231.0            0.0
+
+- The copy workload keeps the whole win under auto: 268.94 t/s against 261.71 for always-on and
+  30.37 for always-off, with the same 122 drafts, all accepted. `auto` never latched.
+- The loss workload recovers completely: always-on costs 24% (27.07 -> 20.46), and auto reaches
+  28.03 t/s while drafting 231 tokens instead of 1006. The latch fired three times, once per rep,
+  each logged as `stopping, 0 of 231 drafted tokens accepted`, so it gave up after the first
+  verification step and stopped paying for the remaining 775.
+
+So on these two workloads auto is the better of the two fixed policies on both, which is the whole
+point: no configuration decision is left to the client.
+
+Caveat: the loss arm here is weaker than the Pi agent turn (24% against about 50% there), because
+that run used the checkpoint/rollback path. The controller reacts to the ratio, which was 0.007
+here and 0.111 there, so the difference in magnitude does not change the decision.
+
+## Gate
+
+`scripts/parity-check.sh bin/cuda build/llama-sm86/bin PQ2_0`: see the log named next to this file;
+perplexity 5.3590 both, delta 0.0000%, identical greedy tokens.
+
+## Overlay lesson, kept
+
+The auto layer was first written as `patches/0004` on top of `0003`. Both patches touch the same
+lines of `server-schema.cpp` and `server-context.cpp`, so on the patched tree `0003` could no
+longer be reverse-applied, and `scripts/build.sh`'s "patch already applied" check fell through to a
+forward apply that then failed. A second run of `build.sh` would have exited 1. The two were folded
+into one patch file so the overlay is stack-free and the existing detection works unchanged. Two
+patches in this directory must not touch the same lines.
+
+## Deferred: a learned decisioner
+
+Not needed yet, and deliberately not built. If the controller proves insufficient, the follow-up
+worth investigating is a small classifier used as a decisioner, possibly one of the Jev-clone-family
+models built on GLiNER-2.5-base. Recorded considerations for that stage: the labels are already
+free (every recorded request logged drafts and accepted counts), the natural home would be
+`tools/logging-proxy.py` so the fork stays untouched, and no ML runtime is installed today
+(`torch`, `onnxruntime`, `transformers` and `sklearn` are all absent; only numpy is present). A
+prompt-side classifier is structurally worse informed than this controller, because it cannot see
+the draft outcome it is trying to predict.

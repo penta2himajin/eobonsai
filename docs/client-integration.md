@@ -107,8 +107,23 @@ The web profile also boots on another port without disturbing the live session:
 `dsh --profile eobonsai-test --patch out/dsh-overlay.yml --port 8090 --no-open` served on
 8090 and returned the token redirect, while the live session stayed on 3080.
 
-**Not measured:** throughput through DSH, and the multi-turn prefix-cache behaviour. Only the
-route and the reasoning field were verified.
+### Throughput, measured
+
+Headless agent task (read a file, add docstrings), speculation off because that is the better
+default for agent loops:
+
+| prompt tokens | processed | cache hit | generated | rate |
+|---:|---:|---:|---:|---:|
+| 11044 | 143 | 98.7% | 8 | title call, too short to rate |
+| 11044 | 11044 | 0.0% | 84 | 26.1 t/s |
+| 11160 | 33 | 99.7% | 39 | 26.6 t/s |
+| 11326 | 128 | 98.9% | 192 | 26.7 t/s |
+| 11558 | 41 | 99.6% | 48 | 26.5 t/s |
+| 11768 | 163 | 98.6% | 79 | 26.5 t/s |
+
+26.1-26.7 t/s, tightly clustered, and 98.6-99.7% cache hits after the first request: DSH's
+agent loop preserves the prefix exactly as Pi's does. Wall time for the turn was 45.4 s against
+Pi's 24.0 s on a similar task, which the prompt size explains (11.0K against 6.3K tokens).
 
 ## OpenCode — installed, not configured, with a known bug
 

@@ -1,0 +1,27 @@
+# DSH throughput through the local server, speculation off (the new default)
+
+Isolated profile ~/.dsh/profiles/eobonsai-test with fixtures/dsh-provider-overlay.yml,
+headless mode, agent task: read parse.py and add a docstring to each function.
+
+  prompt tokens   processed   cache hit   generated   rate
+      11044           143       98.7%          8       0.7 t/s  (title call, too short to rate)
+      11044         11044        0.0%         84      26.1 t/s
+      11160            33       99.7%         39      26.6 t/s
+      11326           128       98.9%        192      26.7 t/s
+      11558            41       99.6%         48      26.5 t/s
+      11768           163       98.6%         79      26.5 t/s
+
+  wall for the whole turn: 45.35 s
+
+Generation sits at 26.1-26.7 t/s, tightly clustered, excluding the 8-token title call where
+the rate is meaningless. Cache hits are 98.6-99.7% after the first request, so DSH's agent
+loop preserves the prefix exactly as Pi's does.
+
+Compared with Pi on a similar edit task:
+
+  client   generation        cache hit    prompt size   wall
+  Pi       27.9-28.4 t/s     99.2-99.3%   ~6.3K         24.0 s
+  DSH      26.1-26.7 t/s     98.6-99.7%   ~11.0K        45.4 s
+
+DSH is slightly slower per token and roughly twice the wall time, explained by its much larger
+prompt (11.0K against 6.3K tokens) rather than by anything else measured here.

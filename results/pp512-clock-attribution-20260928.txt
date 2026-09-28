@@ -1,0 +1,70 @@
+# Resolved: pp512 is at the dp4a roofline; the ceiling was quoted at the wrong clock
+
+Closes the inconsistency opened in `results/spec-loop-profile-20260928.txt`: pp512 measured
+595.75 t/s there against a recorded 493.8 t/s, which implied more int8 MAC per second than the
+hardware can issue. The measurement was right and the ceiling was mis-stated.
+
+## The MAC count, recomputed from the GGUF instead of from prose
+
+`models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf`, all 851 tensors enumerated:
+
+    token_embd.weight          (5120, 248320)   F32    1.2714 G params, a row lookup
+    output.weight              (5120, 248320)          1.7747 G params, last position only in prefill
+    every other 2-D weight                           23.8492 G params, all used per token
+
+Architecture is `qwen35`, dense: there is no expert key in the metadata, so every FFN weight is
+multiplied for every token. **Per-token matmul MACs = 23.8492e9.** The roofline doc's 24.36e9 was
+close (2% high), so the doc's MAC count was not the problem.
+
+## The peak is clock-scaled, and the clock is not 1837 MHz
+
+dp4a peak = 28 SMs x 64 INT32 lanes x 4 MAC x f. The roofline doc used f = 1837 MHz and called it
+"sustained"; that is the idle/streaming clock. Sampled at 0.25 s during a pp512 run
+(`results/pp-clock-samples-20260928-213908.csv`, log `results/pp-clock-aligned-*.log`):
+
+    SM clock, all samples      : min 1837  median 1837  max 1935 MHz
+    SM clock, util >= 50%      : median 1935  max 1935 MHz
+    power                      : up to 180 W, the power limit
+
+At 1935 MHz the peak for this model is 28 x 64 x 4 x 1.935e9 / 23.8492e9 = **581.5 t/s**.
+
+    measured pp512 (5 reps, loadavg 1.35) : 582.33 +- 5.62 t/s
+    = 100.1% of the clock-scaled dp4a peak (the rep spread alone is +-1%)
+
+The same request re-measured on the pinned prebuilt gives 576.90 +- 3.56 t/s against 577.73 +- 4.85
+for the source build, so `patches/0002`/`0003` are not involved: the pinned binary that produced
+493.8 produces ~577 today.
+
+## What 493.8 t/s actually was
+
+    493.80 t/s needs 1.643 GHz to be 100% of the peak
+    493.80 t/s is 84.8% of the peak at 1935 MHz
+
+So the recorded figure was taken in a session where the card was boosting to roughly 1.64 GHz, or
+was 15% off the roofline at 1935 MHz. The recorded log's loadavg was 4.7. **Either way, the doc's
+"493.8 is about 92% of the bound" compared a run at one clock against a microbenchmark at another
+clock.** That is the same class of error as ADR 0006's wrong ceiling: a reference that does not
+apply to the measurement it is judging.
+
+## Consequences
+
+- `docs/roofline-rtx3060.md` must carry the dp4a ceiling **as a function of clock**. For PQ2_0 it
+  is `0.3006 t/s per MHz` of SM clock, i.e. 552 t/s at 1837 MHz and 582 t/s at 1935 MHz. Any pp
+  figure quoted without the clock it ran at is not comparable, in this session or across sessions.
+- Prefill has **no recoverable margin**: the measured rate is the dp4a issue limit at the observed
+  clock. ADR 0001's "prefill tuning is a dead end" stands, now for the right reason.
+- The correction in `docs/review-findings-sol.md` that invalidated the "measured above the ceiling,
+  therefore closed" reasoning is itself superseded: the rate is at the ceiling, at the clock the
+  rate was measured at. What that review correctly killed was the *reasoning*, not the conclusion.
+- `scripts/bench.sh` now samples the SM clock for the whole run and appends min/median/max and the
+  clock-scaled dp4a ceiling to every log, so this cannot recur silently.
+
+## Reproduction
+
+```bash
+# clock and throughput in the same run
+( while true; do nvidia-smi --query-gpu=clocks.sm,power.draw,utilization.gpu --format=csv,noheader; sleep 0.25; done ) > /tmp/clk.csv &
+build/llama-sm86/bin/llama-bench -m models/bonsai2/Ternary-Bonsai-2-27B-PQ2_0.gguf -ngl 99 -fa on -p 512 -n 0 -d 0 -r 5
+kill %1
+PHASES=pp bash scripts/bench.sh build/llama-sm86/bin PQ2_0   # now records the clock itself
+```

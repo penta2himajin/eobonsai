@@ -101,6 +101,24 @@ PP512 needs 2 x 26.9e9 x 512 = 27.5 TFLOP = 13.75e12 int8 MACs.
 > recoverable 8%; it invalidates the "measured above the ceiling, therefore closed" reasoning.
 > See `docs/review-findings-sol.md`.
 
+> **Correction (2026-09-28, later):** the 534 t/s bound above, and the "92% of the bound"
+> judgement with it, are quoted at the wrong clock. `dp4a` peak is
+> `28 SM x 64 INT32 lanes x 4 MAC x f`, and `f` is not fixed at the 1837 MHz used as
+> "sustained" above: sampled at 0.25 s during a pp512 run, the SM clock is 1837 MHz when idle
+> and **1935 MHz once util is above 50%**, at the 180 W power limit. At 1935 MHz the bound for
+> PQ2_0 is **581.5 t/s**, and the measured rate is **582.33 +- 5.62 t/s, i.e. 100.1% of it**
+> (the rep spread alone is +-1%).
+> Re-measured on the pinned prebuilt as well as the source build, so no local patch is involved.
+> The recorded 493.8 t/s needs 1.643 GHz to be 100% of the peak, or is 85% of it at 1935 MHz,
+> and was taken at loadavg 4.7.
+>
+> So the useful statement is not a fixed number of t/s but **0.3006 t/s per MHz** of SM clock for
+> PQ2_0. Two consequences: prefill has no recoverable margin at all, which settles the question
+> the review left open but for a different reason than either side gave; and any pp figure quoted
+> without the clock it ran at is not comparable across sessions. `scripts/bench.sh` now samples the
+> clock for the whole run and appends min/median/max plus the clock-scaled ceiling to every log.
+> Full write-up: `results/pp512-clock-attribution-20260928.txt`.
+
 ```
 13.75e12 MAC / 13.0e12 MAC/s = 1.06 s  ->  483 t/s ceiling
 ```

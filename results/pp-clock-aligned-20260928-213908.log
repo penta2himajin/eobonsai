@@ -1,0 +1,11 @@
+### pp512 with a concurrent SM clock sampler (0.25 s)
+date    : 2026-09-28T21:39:08+09:00
+loadavg : 2.51 1.41 0.82 4/4008 1971532
+binary  : build/llama-sm86/bin/llama-bench  2026-09-28 12:03:57.382663219 +0900
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 11904 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 11904 MiB
+| model                          |       size |     params | backend    | ngl |  fa |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --: | --------------: | -------------------: |
+| qwen35 27B PQ2_0 - 2.13 bpw (group 128) |   6.70 GiB |    26.90 B | CUDA       |  99 |   1 |           pp512 |        582.33 ± 5.62 |
+
+build: adfffbe (1)

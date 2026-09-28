@@ -41,6 +41,20 @@ fi
 OUT="$ROOT/results/bench-${TAG##*_}-${PACK}-k${KV_TYPE_K}v${KV_TYPE_V}-$(date +%Y%m%d-%H%M%S).log"
 mkdir -p "$ROOT/results"
 
+# Sample the SM clock for the whole run. The clock is not fixed: it idles near 1837 MHz
+# but boosts to ~1935-1965 MHz under a compute-bound int8 phase, and the dp4a ceiling
+# scales with it, so a pp figure without the clock it ran at is not comparable across
+# sessions. See results/pp512-clock-attribution-20260928.txt.
+CLK_SAMPLES="$(mktemp)"
+if command -v nvidia-smi >/dev/null 2>&1; then
+  ( while true; do
+      nvidia-smi --query-gpu=clocks.sm,power.draw,utilization.gpu --format=csv,noheader
+      sleep 0.25
+    done ) > "$CLK_SAMPLES" 2>/dev/null &
+  CLK_PID=$!
+  trap 'kill "$CLK_PID" 2>/dev/null; rm -f "$CLK_SAMPLES"' EXIT
+fi
+
 {
   echo "### provenance"
   echo "binary_dir : $BIN_DIR"
@@ -86,6 +100,37 @@ if [[ "$PHASES" == *cli* ]]; then
       -p "${SERVED_PROMPT:-Count from 1 to 40 slowly.}" --spec-type "${SPEC_TYPE:-none}" -rea off \
       < /dev/null 2>&1 | grep -E "Generation:|Prompt:" | tee -a "$OUT"
   done
+fi
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+  kill "$CLK_PID" 2>/dev/null || true
+  sleep 0.3
+  echo "" | tee -a "$OUT"
+  echo "### clocks while the phases ran (0.25 s samples)" | tee -a "$OUT"
+  python3 - "$CLK_SAMPLES" <<'PY' | tee -a "$OUT"
+import sys, statistics
+rows = []
+for line in open(sys.argv[1]):
+    p = [x.strip() for x in line.strip().split(',')]
+    if len(p) != 3 or not p[0][:1].isdigit():
+        continue
+    n = lambda s: float(''.join(c for c in s if c.isdigit() or c == '.'))
+    rows.append((n(p[0]), n(p[2])))
+if not rows:
+    print("no samples")
+    raise SystemExit(0)
+sm = [r[0] for r in rows]
+busy = [r[0] for r in rows if r[1] >= 50]
+print(f"samples     : {len(rows)}")
+print(f"SM clock    : min {min(sm):.0f}  median {statistics.median(sm):.0f}  max {max(sm):.0f} MHz")
+if busy:
+    print(f"SM clock    : median {statistics.median(busy):.0f} MHz while util >= 50% (n={len(busy)})")
+else:
+    print("SM clock    : no sample caught util >= 50%; use the median above with care")
+# samples are in MHz; dp4a peak = 28 SM x 64 INT32 lanes x 4 MAC x f, against 23.8492 G MAC/token
+f_mhz = statistics.median(busy or sm)
+print(f"dp4a ceiling at {f_mhz:.0f} MHz, PQ2_0: {28*64*4*f_mhz*1e6/23.8492e9:.1f} t/s")
+PY
 fi
 
 echo

@@ -1,0 +1,26 @@
+### provenance
+binary_dir : build/llama-sm86/bin
+model      : Ternary-Bonsai-2-27B-PQ2_0.gguf  (7206168928 bytes)
+fork_commit: adfffbe41b2cabcd51fff326ab045662265062bb
+kv_type    : k=f16 v=f16    reps: 1
+date       : 2026-09-28T21:40:14+09:00
+loadavg    : 2.63 1.66 0.95 7/4008 1974384   <- must be idle for a fair comparison
+### gpu
+name, memory.used [MiB], memory.total [MiB], clocks.current.sm [MHz], clocks.current.memory [MHz], temperature.gpu, power.draw [W], power.limit [W]
+NVIDIA GeForce RTX 3060, 804 MiB, 12288 MiB, 1935 MHz, 7301 MHz, 52, 44.73 W, 180.00 W
+
+### PP (prompt processing)
+$ llama-bench -m <model> -ngl 99 -fa on  -r 1 -p 512 -n 0 -d 0
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 11904 MiB):
+  Device 0: NVIDIA GeForce RTX 3060, compute capability 8.6, VMM: yes, VRAM: 11904 MiB
+| model                          |       size |     params | backend    | ngl |  fa |            test |                  t/s |
+| ------------------------------ | ---------: | ---------: | ---------- | --: | --: | --------------: | -------------------: |
+| qwen35 27B PQ2_0 - 2.13 bpw (group 128) |   6.70 GiB |    26.90 B | CUDA       |  99 |   1 |           pp512 |        572.63 ± 0.00 |
+
+build: adfffbe (1)
+
+### clocks while the phases ran (0.25 s samples)
+samples     : 18
+SM clock    : min 1837  median 1837  max 1935 MHz
+SM clock    : no sample caught util >= 50%; use the median above with care
+dp4a ceiling at 1837 MHz, PQ2_0: 552.1 t/s

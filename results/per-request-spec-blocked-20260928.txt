@@ -1,0 +1,57 @@
+# Enabling the per-request speculation fields is not a stub flip
+
+## What the code actually contains
+
+tools/server/server-schema.cpp registers the speculative request fields inside a disabled
+block whose comment reads "to keep things simple, we disable speculative parameter
+adjustments for now". Removing the guard and rebuilding fails:
+
+  server-schema.cpp:207:85: error: expected ')' before ';' token
+  server-schema.cpp:205:8:  note: to match this '('
+
+Line 205 starts `add((new field_num("speculative.ngram_min_hits", ...))` and line 207 ends the
+call without closing it. The block is **unfinished upstream code**, not merely switched off: it
+has never been compiled, so its syntax was never checked.
+
+## Enabling the parse is also not sufficient
+
+Even with valid syntax, nothing applies the values. The speculative context is created once
+from the server-level parameters:
+
+  server-context.cpp:1189
+      spec.reset(common_speculative_init(params_base.speculative, params_base.n_parallel));
+
+and a search for per-task use finds only `params_base.speculative`. `task.params.speculative`
+is written by the schema and then never read, so the request field has no path to the decode
+loop.
+
+Measured, with the schema still in its shipped state (so the honest baseline):
+
+  server speculation   request                drafts
+  off                  (nothing)                   0
+  off                  speculative.type=ngram-simple  0
+  on (6/384)           (nothing)                 121
+  on (6/384)           speculative.type=none     121
+
+Accepted and ignored in both directions.
+
+## What a real implementation needs
+
+1. Fix the unfinished schema block so the fields parse (syntax plus whatever the author left
+   out).
+2. Apply the task's speculative configuration per request. There is an established pattern to
+   copy: the sampler is already reinitialised per task at the slot-adoption point,
+   `slot.smpl.reset(common_sampler_init(model_tgt, task.params.sampling))`, and the same place
+   sets `slot.n_predict_max` from `task.params.n_predict`. Reinitialising the slot's spec
+   context there is the natural analogue.
+3. Test it under both workloads, because the whole reason to want this is that agent loops
+   lose on speculation while long copying answers gain ~9x
+   (docs/agent-loop-vs-copy-turns.md).
+
+Ownership needs care: `spec` appears both as `common_speculative * spec` and as
+`common_speculative_ptr spec`, and the decode callback at server-context.cpp:709 reaches it
+through `slot.spec`. Reconfiguring it per request means getting that lifetime right, which is
+why this is a change to be made deliberately rather than as a side effect of a benchmark.
+
+Note the tree was restored to a building state after the failed attempt; the only remaining
+fork change is patches/0002.

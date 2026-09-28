@@ -59,6 +59,10 @@ step of drafting.
 Raw: `results/per-request-spec-auto-20260928-154122.txt` and `.json`;
 latch lines in `results/serve-spec-auto-20260928-153802.log`.
 
+The server binary in that log was built at 15:37:56. Packaging the change as one patch instead of
+two relinked it at 15:45:27; the three source files are byte-identical, verified by reverse-applying
+the patch against the tree, so the numbers below belong to the same code.
+
     workload       arm    mean t/s  mean draft_n  mean accepted
     verbatim-copy  off       30.37             -              -
     verbatim-copy  on       261.71         122.0          122.0

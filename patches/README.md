@@ -57,3 +57,37 @@ Background: a standalone microbenchmark had predicted +20% for this change and w
 by 10x, because its simplified K-loop was itself slower than the real kernel's at the same
 configuration. See [ADR 0004](../docs/decisions/0004-gemv-launch-config.md); the lesson is
 that launch-configuration sweeps in simplified kernels do not transfer.
+
+## 0003-server-per-request-speculative.patch
+
+Applies to `adfffbe41b2cabcd51fff326ab045662265062bb`.
+
+Server-side, not a kernel change. Lets a request turn speculation off for its own generation
+with `"speculative": {"type": "none"}`, so one server can run creation turns without
+speculation and modification turns with it. The upstream block that declared these request
+fields was guarded by `#if 0`, had an unclosed paren, registered flat dotted keys that no
+client sends, and linked only if `common_json::get<unsigned short>` was added; the patch
+replaces it with a `field_nested("speculative")` holding a single `type` subfield. Only
+on/off is supported, because the speculative context is built once at load; any other method
+name is rejected with a 400 rather than silently ignored.
+
+Measured on the served shape, one server, `ngram-simple` 6/384, `fixtures/prompts/code-edit.txt`
+(max_tokens 256), three reps:
+
+| workload | arm | mean t/s | mean draft_n |
+|---|---|---:|---:|
+| low-overlap (novel short answer) | off | 29.89 | - |
+| low-overlap | on | 29.98 | 0 |
+| code-edit (full-file rewrite) | off | 29.80 | - |
+| **code-edit** | **on** | **309.16** | **249** (all accepted) |
+
+The on -> off -> on transition was walked twice with the counters following it exactly, so an
+off request leaves no stale draft behind.
+
+Gates: `scripts/parity-check.sh` PASS (perplexity 5.3590 both, delta 0.0000%, identical greedy
+tokens); `PHASES=cli scripts/bench.sh` 30.1 / 30.6 / 30.3 t/s, inside the 0002 baseline of
+28.8-30.6 t/s.
+
+Full write-up: [`results/per-request-spec-20260928.txt`](../results/per-request-spec-20260928.txt).
+The schema investigation, including the three blockers found in the upstream block, is in
+[`results/schema-probe-20260928.txt`](../results/schema-probe-20260928.txt).

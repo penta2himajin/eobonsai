@@ -1,0 +1,91 @@
+diff --git a/tools/server/server-context.cpp b/tools/server/server-context.cpp
+index 102da8f..18f278f 100644
+--- a/tools/server/server-context.cpp
++++ b/tools/server/server-context.cpp
+@@ -1747,6 +1747,13 @@ private:
+         // the per-request limit takes priority over the global one
+         slot.n_predict_max = task.params.n_predict != -1 ? task.params.n_predict : params_base.n_predict;
+ 
++        // the speculative method is fixed when the context is built; a request can only turn it
++        // off, and only for its own generation
++        const auto & spec_types = task.params.speculative.types;
++        const bool spec_off = spec_types.size() == 1 && spec_types[0] == COMMON_SPECULATIVE_TYPE_NONE;
++        slot.spec = (spec && !spec_off) ? spec.get() : nullptr;
++        slot.stats.speculative = slot.can_speculate();
++
+         slot.task = std::make_unique<const server_task>(std::move(task));
+ 
+         slot.state = slot.task->is_child()
+diff --git a/tools/server/server-schema.cpp b/tools/server/server-schema.cpp
+index 64b9251..d325426 100644
+--- a/tools/server/server-schema.cpp
++++ b/tools/server/server-schema.cpp
+@@ -194,37 +194,39 @@ std::vector<std::unique_ptr<field>> make_llama_cmpl_schema(const common_params &
+     // Speculative decoding params
+     //
+ 
+-    // TODO: to keep things simple, we disable speculative parameter adjustments for now
+-#if 0
+-    // TODO: for now, be able to adjust only the draft-model based speculative parameters
+-    add((new field_num("speculative.n_max", params.speculative.draft.n_max))
+-        ->set_hard_limits(0, INT32_MAX)
+-        ->set_desc("Maximum number of tokens to draft during speculative decoding"));
+-
+-    add((new field_num("speculative.n_min", params.speculative.draft.n_min))
+-        ->set_hard_limits(0, INT32_MAX)
+-        ->set_desc("Minimum number of draft tokens to use for speculative decoding");
+-
+-    add((new field_num("speculative.p_min", params.speculative.draft.p_min))
+-        ->set_hard_limits(0.0f, 1.0f)
+-        ->set_desc("Minimum speculative decoding probability for draft tokens (0 = greedy)"));
+-
+-
+-    add((new field_str("speculative.type"))
+-        ->set_desc("Speculative decoding method (for debugging and research purposes)")
+-        ->set_handler([&](field_eval_context & ctx, const json & data) {
+-            ctx.params.speculative.types = { common_speculative_type_from_name(data.at("speculative.type").get<std::string>()) };
+-        }));
+-
+-    add((new field_num("speculative.ngram_size_n", params.speculative.ngram_simple.size_n))
+-        ->set_desc("Ngram size for lookup in ngram-based speculative decoding"));
++    // the speculative method is fixed when the context is built, so a request can only turn
++    // speculation off for its own generation
++    add((new field_nested("speculative"))
++        ->add_subfield((new field_str("type"))
++            ->set_desc("Speculative decoding method for this request; \"none\" turns speculation off for this request")
++            ->set_handler([&](field_eval_context & ctx, const json & data) {
++                const auto requested = common_speculative_types_from_names(
++                        string_split<std::string>(data.at("type").get<std::string>(), ','));
++
++                if (requested.size() == 1 && requested[0] == COMMON_SPECULATIVE_TYPE_NONE) {
++                    ctx.params.speculative.types = requested;
++                    return;
++                }
+ 
+-    add((new field_num("speculative.ngram_size_m", params.speculative.ngram_simple.size_m))
+-        ->set_desc("Mgram size for speculative tokens in ngram-based speculative decoding"));
++                // a request cannot pick a different method: the context holds only what the
++                // server built, and rebuilding it per request is not supported
++                // note: --spec-type appends to the default {none}, so drop none before comparing
++                auto enabled = params_base.speculative.types;
++                enabled.erase(std::remove(enabled.begin(), enabled.end(), COMMON_SPECULATIVE_TYPE_NONE),
++                        enabled.end());
++                std::sort(enabled.begin(), enabled.end());
++
++                auto requested_sorted = requested;
++                std::sort(requested_sorted.begin(), requested_sorted.end());
++
++                if (requested_sorted != enabled) {
++                    throw std::invalid_argument(string_format(
++                            "this server runs --spec-type %s; a request can only repeat that or send \"none\"",
++                            enabled.empty() ? "none" : common_speculative_type_name_str(enabled).c_str()));
++                }
+ 
+-    add((new field_num("speculative.ngram_min_hits", params.speculative.ngram_simple.min_hits))
+-        ->set_desc("Minimum hits at ngram lookup for mgram to be proposed"));
+-#endif
++                ctx.params.speculative.types = requested;
++            })));
+ 
+     add((new field_json("lora"))
+         ->set_desc("A list of LoRA adapters to apply to this request. Each entry must have `id` and `scale` fields. Adapters not listed default to scale 0.0")

@@ -1,0 +1,2 @@
+{"label": "warmup", "t_start": 1790592689.8714418, "t_end": 1790592691.6760807, "draft_n": null, "draft_n_accepted": null, "prompt_n": 922, "cache_n": 0, "predicted_n": 4, "predicted_ms": 110.028, "predicted_per_second": 27.26578689060966}
+{"label": "copy", "t_start": 1790592703.719243, "t_end": 1790592705.8217146, "draft_n": 621, "draft_n_accepted": 503, "prompt_n": 4, "cache_n": 918, "predicted_n": 512, "predicted_ms": 1929.014, "predicted_per_second": 264.9021728198966}

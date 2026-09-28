@@ -1,0 +1,60 @@
+# The decode GEMV headroom is now spent: 249.7 -> 293.7 GB/s effective DRAM
+
+Derived from the two tracked ncu CSVs, pre- and post-`patches/0002`. This is analysis of existing
+evidence, not a new profiling run, but the numbers were not computed anywhere before and they
+change the answer to "is there any decode headroom left".
+
+Method: the CSVs are ncu long format, one row per (launch, metric). Every `mul_mat_vec_q` launch
+was grouped by grid, `dram__bytes.sum` and `gpu__time_duration.sum` summed per launch, and the
+effective rate taken as total bytes over total time. Same weights are present in both runs, which
+the per-shape byte counts confirm (48.5 MB for the 17408-row shape, 24.8 MB for 5120, 17.8 MB for
+12288 in both).
+
+    pre-0002   results/ncu-served-gemv.csv
+      4 launches, 93.1 MB, 0.373 ms   ->  249.7 GB/s  =  90.8% of 275 GB/s
+      shape      MB      ms     GB/s    %275
+      17408    48.5   0.175    277.7   101.0%
+      5120     24.8   0.103    241.8    87.9%
+      12288    17.8   0.084    210.9    76.7%
+      1024      1.9   0.011    175.7    63.9%
+
+    post-0002  results/ncu-rpb2.csv   (rows_per_block = 2, so the grids are halved)
+      6 launches, 117.3 MB, 0.400 ms  ->  293.7 GB/s  = 106.8% of 275 GB/s
+      shape      MB      ms     GB/s    %275
+      8704     48.5   0.154    314.9   114.5%      (the 17408-row shape)
+      2560     24.8   0.078    318.2   115.7%      (the 5120-row shape)
+      6144     17.8   0.066    271.2    98.6%      (the 12288-row shape)
+      5120     15.0   0.056    266.8    97.0%
+      3072      9.4   0.036    261.6    95.1%
+      512       1.9   0.010    188.3    68.5%
+
+**+17.6% effective DRAM rate.** The shapes that were behind are the ones that moved: the 5120-row
+shape went 87.9% -> 97.0% and the 12288-row shape 76.7% -> 98.6%, which is what removing the L1
+re-read was supposed to do. The 17408-row shape was already at its ceiling and now reads above the
+275 GB/s reference.
+
+## What this means for the remaining headroom
+
+The 8-13% GEMV gap in ADR 0006's correction was measured **before** `patches/0002` (the correction
+is commit `cf07225`, the kernel change is the later `c441990`). After it, the GEMV reads at or above
+every reference rate measured on this card: 97.9% of the 300 GB/s contiguous-buffer ceiling and
+106.8% of the 275 GB/s geometry ceiling. `docs/gemv-l1-diagnosis.md` reaches the same conclusion by
+a different route: no identified decode kernel target remains, and the residual is ordinary DRAM
+efficiency.
+
+Two caveats, both inherited from ADR 0006 and still true: ncu replays kernels and can hold clocks,
+so a figure above the reference is not proof that the reference was beaten; and the reference itself
+was measured in an ordinary CUDA run, not under ncu. The defensible statement is not "there is no
+gap" but "there is no identified target", which is a weaker claim and the honest one.
+
+## Consequences
+
+- The only large lever left is tokens per weight pass, i.e. speculation (ADR 0003).
+- Non-speculation decode has no identified mechanism for more than a few percent, and the
+  non-GEMV part of the token is spread over about twenty kernel types with the largest at 2.8%.
+- Draft-model speculation (`--spec-draft-model`, `draft-mtp` / `draft-eagle3` / `draft-dflash` /
+  `draft-dspark`) is the one unrecovered multiple, and it waits on a draft model for this ternary
+  packing rather than on code.
+
+Reproduction: re-derive with the parser described above against `results/ncu-served-gemv.csv` and
+`results/ncu-rpb2.csv`.

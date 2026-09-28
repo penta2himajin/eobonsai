@@ -1,0 +1,37 @@
+# Is speculation switchable per request? The schema says yes, the code says no.
+
+llama-server's request schema registers speculative fields (tools/server/server-schema.cpp):
+
+  add((new field_str("speculative.type")) ...);
+  add((new field_num("speculative.n_max", params.speculative.draft.n_max)) ...);
+  add((new field_num("speculative.n_min", params.speculative.draft.n_min)) ...);
+  add((new field_num("speculative.p_min", params.speculative.draft.p_min)) ...);
+
+and the surrounding comments read:
+  // TODO: to keep things simple, we disable speculative parameter adjustments for now
+
+Measured, prompt = fixtures/prompts/code-edit.txt, n=256, temp=0, reasoning_effort none.
+
+Server started with speculation OFF:
+
+  request body                          gen t/s   drafts
+  (nothing)                               28.44        0
+  speculative.type = ngram-simple         28.68        0
+  type=ngram-simple, n_max=384            28.68        0
+  type = none                             28.63        0
+
+Server started with speculation ON (ngram-simple 6/384):
+
+  request body                          gen t/s   drafts
+  (nothing)                              226.96      249
+  speculative.type = none                278.90      249
+  type=none, n_max=0                     269.28      249
+
+The field is accepted in both directions and ignored in both: asking for ngram-simple does not
+create drafts, and asking for none does not remove them. It is a declared stub, not a working
+control.
+
+Caveat on the numbers: the three requests against the same running server differ by 23% in
+generation rate (226.96, 278.90, 269.28) with identical draft counts, so single-request
+comparisons in this test are not reliable. The draft counts are the decisive evidence, and
+they are unambiguous.

@@ -145,6 +145,27 @@ client-side, and three attempts to fetch the BYOK, settings and CLI reference pa
 navigation only. All that could be established is that BYOK providers exist. Nothing about its
 config surface is claimed here, because nothing was verified.
 
+## Per-request speculation is not available
+
+`llama-server`'s request schema declares `speculative.type`, `speculative.n_max`,
+`speculative.n_min` and `speculative.p_min`, and the code around them says
+"we disable speculative parameter adjustments for now". Measured both ways: asking for
+`ngram-simple` while the server runs with speculation off produces zero drafts, and asking for
+`none` while it runs with speculation on still produces 249. The field is accepted and ignored.
+See `results/spec-per-request-20260928.txt`.
+
+So the choice is per server run, not per request, and the options are:
+
+| approach | cost | notes |
+|---|---|---|
+| two servers on different ports | none | works today; the client or operator picks the port per workload |
+| a routing proxy in front | small | `tools/logging-proxy.py` already sits in the request path and could forward to one of two backends on a header or a prompt-size rule |
+| patch the schema stub to apply per task | a fork change | the fields are already parsed into `params.speculative`; applying them needs the per-slot spec context to be created on demand rather than at startup |
+
+Per-chunk switching mid-generation is a different question, and probably the wrong target: the
+character of a generation does not change within it. A single answer either copies the context
+or reasons about it, so per-request or per-workload is the useful granularity.
+
 ## How to check any client
 
 `tools/logging-proxy.py` forwards to llama-server and records the raw request bodies, which is

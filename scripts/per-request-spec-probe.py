@@ -4,17 +4,21 @@
 The server must be started with speculation on (for example --spec-type ngram-simple). A server
 started with --spec-type none has no speculative context, so nothing can be switched on, only off.
 
-Two modes:
+Three modes:
 
   switch  one prompt, a sequence that walks on -> off -> on twice, plus the rejection cases.
           Draft counters are the decisive column: generation rate varies by 20% or more between
           single requests against the same server, so one rate reading proves nothing.
   matrix  two workloads x two arms (speculation off / on), several reps each, with a warm-up per
           workload so the prefix cache is hot for both arms.
+  auto    two workloads x three arms (off / on / auto), the same warm-up. One workload copies its
+          input and must keep drafting under auto; the other drafts and gets rejected and must
+          latch off.
 
 Usage:
     scripts/per-request-spec-probe.py --mode switch
     scripts/per-request-spec-probe.py --mode matrix --reps 3
+    scripts/per-request-spec-probe.py --mode auto --reps 3
 """
 import argparse
 import json
@@ -43,6 +47,15 @@ WORKLOADS = [
     ("code-edit",   "fixtures/prompts/code-edit.txt",        256),
 ]
 ARMS = [("off", {"type": "none"}), ("on", None)]
+
+# The auto controller needs both regimes: a workload that drafts and gets its drafts accepted,
+# and one that drafts and gets them rejected. The second is the tracked roofline doc used as a
+# long prompt with a short answer: 1006 drafted tokens, 0.7% accepted, 24% slower than off.
+AUTO_WORKLOADS = [
+    ("verbatim-copy", "fixtures/prompts/verbatim-copy.txt", 128),
+    ("roofline",      "docs/roofline-rtx3060.md",           256),
+]
+AUTO_ARMS = [("off", {"type": "none"}), ("on", None), ("auto", {"type": "auto"})]
 
 
 def post(url, body, timeout):
@@ -120,9 +133,9 @@ def run_switch(args):
     return rows
 
 
-def run_matrix(args):
+def run_matrix_over(args, workloads, arms):
     summary = []
-    for wname, path, max_tokens in WORKLOADS:
+    for wname, path, max_tokens in workloads:
         with open(path, encoding="utf-8") as f:
             prompt = f.read()
 
@@ -134,7 +147,7 @@ def run_matrix(args):
               f"{'cache_n':>8} {'prompt_n':>8} {'gen t/s':>9}")
         print("-" * 72)
 
-        for arm, spec in ARMS:
+        for arm, spec in arms:
             rates, drafts, accepted = [], [], []
             for rep in range(1, args.reps + 1):
                 status, resp = request(args.url, prompt, spec, max_tokens, args.timeout)
@@ -171,9 +184,17 @@ def run_matrix(args):
     return summary
 
 
+def run_matrix(args):
+    return run_matrix_over(args, WORKLOADS, ARMS)
+
+
+def run_auto(args):
+    return run_matrix_over(args, AUTO_WORKLOADS, AUTO_ARMS)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["switch", "matrix"], default="switch")
+    ap.add_argument("--mode", choices=["switch", "matrix", "auto"], default="switch")
     ap.add_argument("--url", default="http://127.0.0.1:8080")
     ap.add_argument("--prompt", default="fixtures/prompts/code-edit.txt")
     ap.add_argument("--max-tokens", type=int, default=256)
@@ -182,7 +203,7 @@ def main():
     ap.add_argument("--out", default="")
     args = ap.parse_args()
 
-    rows = run_switch(args) if args.mode == "switch" else run_matrix(args)
+    rows = {"switch": run_switch, "matrix": run_matrix, "auto": run_auto}[args.mode](args)
 
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

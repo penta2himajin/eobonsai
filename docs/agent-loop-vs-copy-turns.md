@@ -50,9 +50,7 @@ The two differ by 9x in the wrong direction, so the server-wide `SPEC_TYPE` defa
 choice rather than a detail. For the single-user agent workload this project targets, off is
 the better default; the 249 t/s figure requires a workload whose answers are long copies.
 
-## Not measured
-
-## Measured since: a per-request mechanism
+## Measured since: per-request and automatic switching
 
 `patches/0003` adds it. A request turns speculation off for its own generation with
 `"speculative": {"type": "none"}`; omitting the object keeps the server setting. One server, one
@@ -74,5 +72,26 @@ name is rejected with a 400 instead of being ignored. Full write-up:
 The low-overlap proxy above does not reproduce the Pi loss in the first table (28.2 off against
 24.9 and 16.9 on); with draft 384 and no ngram match it shows "no gain" rather than a loss. The
 Pi numbers stay the evidence that off is the right default for an agent loop.
+
+### The server can make the decision itself
+
+`"speculative": {"type": "auto"}` drafts first and stops for the rest of the generation once the
+draft acceptance ratio falls under 0.6 (tunable with `accept_min` and `min_draft`). Rejected drafts
+cost exactly the target compute they consume, and the recorded acceptance ratios are bimodal with a
+wide gap (0.531 against 0.849), so the ratio decides it. It is available after one verification
+step: the copy turn drafts 249 tokens and accepts all of them at once, the tool-call turn drafts
+about 4 per step and accepts almost none. Same server, three reps:
+
+| workload | arm | mean t/s | mean draft_n |
+|---|---|---:|---:|
+| verbatim-copy | off | 30.37 | - |
+| verbatim-copy | on | 261.71 | 122 (all accepted) |
+| **verbatim-copy** | **auto** | **268.94** | **122 (never latched)** |
+| roofline (long prompt, short answer) | off | 27.07 | - |
+| roofline | on | 20.46 | 1006 (7 accepted, 24% slower) |
+| **roofline** | **auto** | **28.03** | **231 (latched after one step)** |
+
+Auto beats the better fixed policy on both, so no configuration decision is left to the client.
+Write-up: `results/spec-auto-controller-20260928.txt`.
 
 Still not measured: throughput through DSH.

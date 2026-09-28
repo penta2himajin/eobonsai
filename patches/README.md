@@ -91,3 +91,41 @@ tokens); `PHASES=cli scripts/bench.sh` 30.1 / 30.6 / 30.3 t/s, inside the 0002 b
 Full write-up: [`results/per-request-spec-20260928.txt`](../results/per-request-spec-20260928.txt).
 The schema investigation, including the three blockers found in the upstream block, is in
 [`results/schema-probe-20260928.txt`](../results/schema-probe-20260928.txt).
+
+### Automatic mode, in the same patch
+
+`"speculative": {"type": "auto"}` lets the server decide instead of the client. It drafts, watches
+the accumulated draft acceptance ratio, and stops for the rest of the generation once the ratio
+falls under `accept_min` (default 0.6) after at least `min_draft` (default 8) tokens have been
+drafted. Both subfields are validated: out of range, or sent without `"type": "auto"`, is a 400.
+
+The ratio is the right signal because a rejected draft costs exactly the target compute it
+consumes, and the recorded distribution is bimodal with a wide gap (0.531 against 0.849), so 0.6-0.7
+separates the two regimes. It is also available after one step: a copy turn drafts 249 tokens and
+accepts all of them in a single verification, a tool-call turn drafts about 4 per step and accepts
+almost none. Measured, one server, three reps:
+
+| workload | arm | mean t/s | mean draft_n |
+|---|---|---:|---:|
+| verbatim-copy | off | 30.37 | - |
+| verbatim-copy | on | 261.71 | 122 (all accepted) |
+| **verbatim-copy** | **auto** | **268.94** | **122 (never latched)** |
+| roofline (long prompt, short answer) | off | 27.07 | - |
+| roofline | on | 20.46 | 1006 (7 accepted) |
+| **roofline** | **auto** | **28.03** | **231 (latched once)** |
+
+Auto is the better of the two fixed policies on both workloads, which is the point. The latch only
+fires at a step with no draft pending, because `spec_draft` and `spec_i_batch` are consumed as a
+unit by the accept block; flipping the switch with a draft in flight would leave drafted tokens in
+the batch that are neither accepted nor dropped. A latch logs
+`speculative auto: stopping, N of M drafted tokens accepted` at INFO level.
+
+Full write-up: [`results/spec-auto-controller-20260928.txt`](../results/spec-auto-controller-20260928.txt).
+
+### The overlay is deliberately stack-free
+
+The auto layer was first a separate `0004` on top of this patch. Both touch the same lines, so
+`0003` could no longer be reverse-applied on the patched tree, `scripts/build.sh`'s "already
+applied" check fell through, and the forward apply failed: a second run of `build.sh` would have
+exited 1. They were folded into this one patch so the existing detection works unchanged. Two
+patches in this directory must not touch the same lines.
